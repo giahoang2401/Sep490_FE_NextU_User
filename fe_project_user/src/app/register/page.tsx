@@ -1,12 +1,19 @@
 "use client"
 
 import type React from "react"
-
 import { useState } from "react"
+import axios from "axios"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AlertCircle, Loader2, CheckCircle } from "lucide-react"
 import Link from "next/link"
@@ -22,16 +29,13 @@ export default function RegisterPage() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
 
-  const validatePassword = (password: string) => {
-    return password.length >= 8
-  }
+  const validatePassword = (password: string) => password.length >= 8
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
     setIsLoading(true)
 
-    // Validate form
     if (!username || !email || !password || !confirmPassword) {
       setError("Please fill in all fields")
       setIsLoading(false)
@@ -50,21 +54,25 @@ export default function RegisterPage() {
       return
     }
 
-    // Simulate API call
     try {
-      // In a real app, this would be an API call to register
-      await new Promise((resolve) => setTimeout(resolve, 1500))
+      const res = await axios.post("http://localhost:5000/api/bff/auth/register", {
+        userName: username,
+        email,
+        password,
+      })
 
-      // Simulate successful registration
-      console.log("Registration successful", { username, email })
+      console.log("Registration successful:", res.data)
       setSuccess(true)
 
-      // Redirect after showing success message
       setTimeout(() => {
         router.push("/login")
       }, 2000)
-    } catch (err) {
-      setError("Registration failed. Please try again.")
+    } catch (err: any) {
+      if (err.response?.data?.message) {
+        setError(err.response.data.message)
+      } else {
+        setError("Registration failed. Please try again.")
+      }
     } finally {
       setIsLoading(false)
     }
@@ -170,12 +178,8 @@ export default function RegisterPage() {
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4 w-full">
-            <Button variant="outline" className="rounded-xl">
-              Google
-            </Button>
-            <Button variant="outline" className="rounded-xl">
-              Facebook
-            </Button>
+            <Button variant="outline" className="rounded-xl">Google</Button>
+            <Button variant="outline" className="rounded-xl">Facebook</Button>
           </div>
           <div className="text-center text-sm text-slate-600">
             Already have an account?{" "}

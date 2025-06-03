@@ -1,12 +1,19 @@
 "use client"
 
 import type React from "react"
-
 import { useState } from "react"
+import axios from "axios"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AlertCircle, Loader2 } from "lucide-react"
 import Link from "next/link"
@@ -24,23 +31,29 @@ export default function LoginPage() {
     setError(null)
     setIsLoading(true)
 
-    // Validate form
     if (!email || !password) {
       setError("Please fill in all fields")
       setIsLoading(false)
       return
     }
 
-    // Simulate API call
     try {
-      // In a real app, this would be an API call to authenticate
-      await new Promise((resolve) => setTimeout(resolve, 1500))
+      const res = await axios.post("http://localhost:5000/api/bff/auth/login", {
+        email,
+        password,
+        rememberMe: true,
+      })
 
-      // Simulate successful login
-      console.log("Login successful", { email })
+      console.log("Login successful:", res.data)
+      // Bạn có thể lưu token nếu backend trả về (res.data.token) ở đây
+
       router.push("/")
-    } catch (err) {
-      setError("Invalid email or password. Please try again.")
+    } catch (err: any) {
+      if (err.response?.data?.message) {
+        setError(err.response.data.message)
+      } else {
+        setError("Invalid email or password. Please try again.")
+      }
     } finally {
       setIsLoading(false)
     }
@@ -91,7 +104,11 @@ export default function LoginPage() {
                 required
               />
             </div>
-            <Button type="submit" className="w-full rounded-full bg-slate-800 hover:bg-slate-700" disabled={isLoading}>
+            <Button
+              type="submit"
+              className="w-full rounded-full bg-slate-800 hover:bg-slate-700"
+              disabled={isLoading}
+            >
               {isLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
