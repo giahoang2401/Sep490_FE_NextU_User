@@ -1,11 +1,11 @@
-"use client"
+"use client";
 
-import type React from "react"
-import { useState } from "react"
-import axios from "axios"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import type React from "react";
+import { useState } from "react";
+import axios from "axios";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Card,
   CardContent,
@@ -13,73 +13,140 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { AlertCircle, Loader2 } from "lucide-react"
-import Link from "next/link"
-import { useRouter } from "next/navigation"
-import { useAuth } from "@/components/auth-context"
+} from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AlertCircle, Loader2 } from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/components/auth-context";
 
 export default function LoginPage() {
-  const router = useRouter()
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const router = useRouter();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const { login } = useAuth() // lấy hàm login từ context
+  const { login } = useAuth(); // lấy hàm login từ context
 
-const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault()
-  setError(null)
-  setIsLoading(true)
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setIsLoading(true);
 
-  if (!email || !password) {
-    setError("Please fill in all fields")
-    setIsLoading(false)
-    return
-  }
-
-  try {
-    const res = await axios.post("http://localhost:5000/api/bff/auth/login", {
-      email,
-      password,
-      rememberMe: true,
-    })
-
-    // 🔐 Nếu backend trả về name, email (giống AuthProvider mong muốn)
-    const user = {
-      name: res.data.name || "NoName",
-      email: res.data.email || email,
-      accessToken: res.data.accessToken
+    if (!email || !password) {
+      setError("Please fill in all fields");
+      setIsLoading(false);
+      return;
     }
 
-    login(user) // ✅ cập nhật context + localStorage
+    try {
+      const res = await axios.post(
+        "http://localhost:5000/api/bff/auth/login",
+        {
+          email,
+          password,
+          rememberMe: true,
+        },
+        {
+          headers: {
+            "Content-Type": "application/json",
+          },
+          withCredentials: true, // Nếu backend xử lý cookie
+        }
+      );
 
-    // Nếu có token, lưu lại (tùy bạn)
-    if (res.data.token) {
-      localStorage.setItem("access_token", res.data.token)
+      const data = res.data;
+
+      if (!data.accessToken) {
+        throw new Error("No access token received from server.");
+      }
+
+      // ✅ Đồng bộ với context AuthProvider
+      const user = {
+        name: data.fullName || "User",
+        email: data.email,
+        accessToken: data.accessToken,
+      };
+
+      login(user); // từ useAuth()
+
+      // Nếu muốn lưu accessToken riêng (tùy mục đích)
+      localStorage.setItem("access_token", data.accessToken);
+
+      // Chuyển sang trang chính
+      router.push("/");
+    } catch (err: any) {
+      console.error("Login failed:", err);
+
+      if (err.response?.data?.message) {
+        setError(err.response.data.message);
+      } else if (err.message) {
+        setError(err.message);
+      } else {
+        setError("Login failed. Please try again.");
+      }
+    } finally {
+      setIsLoading(false);
     }
+  };
 
-    router.push("/")
-  } catch (err: any) {
-    if (err.response?.data?.message) {
-      setError(err.response.data.message)
-    } else {
-      setError("Invalid email or password. Please try again.")
+  const handleGoogleLogin = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      // Giả lập gọi Google API – đoạn này cần thay bằng dữ liệu thật khi tích hợp Google OAuth
+      const googleUser = {
+        email: "user@example.com",
+        fullName: "Google User",
+        providerId: "google-oauth-id-123456",
+      };
+
+      const res = await axios.post(
+        "http://localhost:5000/api/bff/auth/google-login",
+        googleUser,
+        {
+          headers: {
+            "Content-Type": "application/json",
+          },
+          withCredentials: true,
+        }
+      );
+
+      const data = res.data;
+      if (!data.accessToken) {
+        throw new Error("No access token received from server.");
+      }
+
+      const user = {
+        name: data.fullName || "User",
+        email: data.email,
+        accessToken: data.accessToken,
+      };
+
+      login(user);
+      localStorage.setItem("access_token", data.accessToken);
+      router.push("/");
+    } catch (err: any) {
+      console.error("Google login failed:", err);
+      setError(
+        err.response?.data?.message || err.message || "Google login failed."
+      );
+    } finally {
+      setIsLoading(false);
     }
-  } finally {
-    setIsLoading(false)
-  }
-}
-
-
+  };
   return (
     <div className="min-h-screen py-12 px-4 sm:px-6 lg:px-8 flex items-center justify-center">
       <Card className="w-full max-w-md rounded-2xl border-0 shadow-xl">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-bold text-slate-800">Welcome Back</CardTitle>
-          <CardDescription>Sign in to your Next Universe account</CardDescription>
+          <CardTitle className="text-2xl font-bold text-slate-800">
+            Welcome Back
+          </CardTitle>
+          <CardDescription>
+            Sign in to your Next Universe account
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {error && (
@@ -105,7 +172,10 @@ const handleSubmit = async (e: React.FormEvent) => {
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label htmlFor="password">Password</Label>
-                <Link href="/forgot-password" className="text-sm text-blue-600 hover:text-blue-800">
+                <Link
+                  href="/forgot-password"
+                  className="text-sm text-blue-600 hover:text-blue-800"
+                >
                   Forgot password?
                 </Link>
               </div>
@@ -141,12 +211,23 @@ const handleSubmit = async (e: React.FormEvent) => {
               <div className="w-full border-t border-slate-200"></div>
             </div>
             <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-white px-2 text-slate-500">Or continue with</span>
+              <span className="bg-white px-2 text-slate-500">
+                Or continue with
+              </span>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4 w-full">
-            <Button variant="outline" className="rounded-xl">
-              Google
+            <Button
+              variant="outline"
+              className="rounded-xl"
+              onClick={handleGoogleLogin}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                "Google"
+              )}
             </Button>
             <Button variant="outline" className="rounded-xl">
               Facebook
@@ -154,12 +235,15 @@ const handleSubmit = async (e: React.FormEvent) => {
           </div>
           <div className="text-center text-sm text-slate-600">
             Don&apos;t have an account?{" "}
-            <Link href="/register" className="font-medium text-blue-600 hover:text-blue-800">
+            <Link
+              href="/register"
+              className="font-medium text-blue-600 hover:text-blue-800"
+            >
               Sign up
             </Link>
           </div>
         </CardFooter>
       </Card>
     </div>
-  )
+  );
 }

@@ -1,6 +1,7 @@
 // src/context/auth-context.tsx
 "use client"
 
+import axios from "axios"
 import { createContext, useContext, useEffect, useState, ReactNode } from "react"
 
 type User = {
@@ -42,11 +43,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem("nextU_user", JSON.stringify(userData))
   }
 
-  const logout = () => {
+const logout = async () => {
+  try {
+    // Gọi API logout để huỷ session / revoke token phía backend
+    await axios.post("http://localhost:5000/api/bff/auth/logout")
+
+    // Xoá dữ liệu user phía frontend
+    setUser(null)
+    setIsLoggedIn(false)
+    localStorage.removeItem("nextU_user")
+  } catch (error) {
+    console.error("Logout API failed:", error)
+    // Optional: vẫn xóa local nếu server fail, để tránh bị kẹt
     setUser(null)
     setIsLoggedIn(false)
     localStorage.removeItem("nextU_user")
   }
+}
 
   return (
     <AuthContext.Provider value={{ user, isLoggedIn, login, logout }}>
