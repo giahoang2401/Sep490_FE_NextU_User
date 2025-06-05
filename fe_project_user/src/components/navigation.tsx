@@ -4,7 +4,8 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Menu, X } from "lucide-react"
 import { useState } from "react"
-import { AuthStatus, useAuth } from "@/components/auth-status"
+import { AuthStatus, } from "@/components/auth-status"
+import { useAuth } from "./auth-context"
 
 export function Navigation() {
   const [isOpen, setIsOpen] = useState(false)

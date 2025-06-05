@@ -18,6 +18,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AlertCircle, Loader2 } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { useAuth } from "@/components/auth-context"
 
 export default function LoginPage() {
   const router = useRouter()
@@ -26,38 +27,52 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError(null)
-    setIsLoading(true)
+  const { login } = useAuth() // lấy hàm login từ context
 
-    if (!email || !password) {
-      setError("Please fill in all fields")
-      setIsLoading(false)
-      return
-    }
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault()
+  setError(null)
+  setIsLoading(true)
 
-    try {
-      const res = await axios.post("http://localhost:5000/api/bff/auth/login", {
-        email,
-        password,
-        rememberMe: true,
-      })
-
-      console.log("Login successful:", res.data)
-      // Bạn có thể lưu token nếu backend trả về (res.data.token) ở đây
-
-      router.push("/")
-    } catch (err: any) {
-      if (err.response?.data?.message) {
-        setError(err.response.data.message)
-      } else {
-        setError("Invalid email or password. Please try again.")
-      }
-    } finally {
-      setIsLoading(false)
-    }
+  if (!email || !password) {
+    setError("Please fill in all fields")
+    setIsLoading(false)
+    return
   }
+
+  try {
+    const res = await axios.post("http://localhost:5000/api/bff/auth/login", {
+      email,
+      password,
+      rememberMe: true,
+    })
+
+    // 🔐 Nếu backend trả về name, email (giống AuthProvider mong muốn)
+    const user = {
+      name: res.data.name || "NoName",
+      email: res.data.email || email,
+      accessToken: res.data.accessToken
+    }
+
+    login(user) // ✅ cập nhật context + localStorage
+
+    // Nếu có token, lưu lại (tùy bạn)
+    if (res.data.token) {
+      localStorage.setItem("access_token", res.data.token)
+    }
+
+    router.push("/")
+  } catch (err: any) {
+    if (err.response?.data?.message) {
+      setError(err.response.data.message)
+    } else {
+      setError("Invalid email or password. Please try again.")
+    }
+  } finally {
+    setIsLoading(false)
+  }
+}
+
 
   return (
     <div className="min-h-screen py-12 px-4 sm:px-6 lg:px-8 flex items-center justify-center">

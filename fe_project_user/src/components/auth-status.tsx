@@ -1,6 +1,8 @@
+// components/auth-status.tsx
 "use client"
 
-import { useState, useEffect } from "react"
+
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
@@ -11,46 +13,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { useRouter } from "next/navigation"
-
-// This is a mock of authentication state
-// In a real app, this would come from your auth provider
-export function useAuth() {
-  // Mock implementation - in a real app, this would check for a token or session
-  const [isLoggedIn, setIsLoggedIn] = useState(false)
-  const [user, setUser] = useState<{ name: string; email: string } | null>(null)
-
-  useEffect(() => {
-    // Check if user is logged in (e.g. from localStorage in this mock)
-    const storedUser = localStorage.getItem("nextU_user")
-    if (storedUser) {
-      setUser(JSON.parse(storedUser))
-      setIsLoggedIn(true)
-    }
-  }, [])
-
-  const login = (userData: { name: string; email: string }) => {
-    setUser(userData)
-    setIsLoggedIn(true)
-    localStorage.setItem("nextU_user", JSON.stringify(userData))
-  }
-
-  const logout = () => {
-    setUser(null)
-    setIsLoggedIn(false)
-    localStorage.removeItem("nextU_user")
-  }
-
-  return { isLoggedIn, user, login, logout }
-}
+import { useAuth } from "./auth-context"
 
 export function AuthStatus() {
-  const { isLoggedIn, user, logout } = useAuth()
+  const { user, isLoggedIn, logout } = useAuth()
   const router = useRouter()
 
-  if (!isLoggedIn || !user) {
-    return null
-  }
+  if (!isLoggedIn || !user) return null
 
   return (
     <DropdownMenu>
@@ -58,7 +27,7 @@ export function AuthStatus() {
         <Button variant="ghost" className="relative h-8 w-8 rounded-full">
           <Avatar className="h-8 w-8">
             <AvatarImage src="/placeholder.svg" alt={user.name} />
-            <AvatarFallback>{user.name.charAt(0).toUpperCase()}</AvatarFallback>
+            <AvatarFallback>{user.name?.charAt(0).toUpperCase() ?? "?"}</AvatarFallback>
           </Avatar>
         </Button>
       </DropdownMenuTrigger>
