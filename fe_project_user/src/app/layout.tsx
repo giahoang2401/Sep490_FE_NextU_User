@@ -9,7 +9,7 @@ const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
   title: "Next Universe - Mindful Co-living & Creative Ecosystem",
-  description: "Find your perfect co-living experience with Next U",
+  description: "Find your perfect co-living experience with NextU",
 }
 
 export default function RootLayout({

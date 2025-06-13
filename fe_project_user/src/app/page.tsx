@@ -1,9 +1,17 @@
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { MapPin, Star, ArrowRight, CheckCircle, Heart, Brain, Lightbulb } from "lucide-react"
-import Link from "next/link"
-import Image from "next/image"
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import {
+  MapPin,
+  Star,
+  ArrowRight,
+  CheckCircle,
+  Heart,
+  Brain,
+  Lightbulb,
+} from "lucide-react";
+import Link from "next/link";
+import Image from "next/image";
 
 const popularCities = [
   {
@@ -96,7 +104,7 @@ const popularCities = [
       specialties: ["Marine Center", "Beach Club", "Water Sports Hub"],
     },
   },
-]
+];
 
 const ecosystemPillars = [
   {
@@ -104,23 +112,38 @@ const ecosystemPillars = [
     title: "Thân (Body)",
     description: "Physical wellbeing and health",
     color: "bg-green-500",
-    features: ["Daily Yoga", "Fitness Programs", "Wellness Retreats", "Healthy Nutrition"],
+    features: [
+      "Daily Yoga",
+      "Fitness Programs",
+      "Wellness Retreats",
+      "Healthy Nutrition",
+    ],
   },
   {
     icon: Brain,
     title: "Tâm (Mind)",
     description: "Emotional connection and community",
     color: "bg-blue-500",
-    features: ["Circle Talks", "Community Events", "Emotional Wellness", "Healing Sessions"],
+    features: [
+      "Circle Talks",
+      "Community Events",
+      "Emotional Wellness",
+      "Healing Sessions",
+    ],
   },
   {
     icon: Lightbulb,
     title: "Trí (Intellect)",
     description: "Conscious creativity and learning",
     color: "bg-purple-500",
-    features: ["Creative Workshops", "Skill Development", "Innovation Labs", "Mentorship"],
+    features: [
+      "Creative Workshops",
+      "Skill Development",
+      "Innovation Labs",
+      "Mentorship",
+    ],
   },
-]
+];
 
 const testimonials = [
   {
@@ -150,7 +173,7 @@ const testimonials = [
     avatar: "/placeholder.svg?height=60&width=60",
     rating: 5,
   },
-]
+];
 
 export default function HomePage() {
   return (
@@ -169,19 +192,23 @@ export default function HomePage() {
 
           <h1 className="text-5xl md:text-7xl font-bold text-slate-800 mb-8 leading-tight">
             Find Your Co-living Experience with{" "}
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 via-cyan-600 to-teal-600">
-              Next U
+            <span className="text-7xl font-black bg-gradient-to-r from-[#28c4dd] via-[#5661b3] to-[#0c1f47] bg-clip-text text-transparent tracking-tight">
+              NextU
             </span>
           </h1>
 
           <p className="text-xl md:text-2xl text-slate-600 mb-12 max-w-4xl mx-auto leading-relaxed">
-            Discover mindful co-living spaces that nurture your <strong>body</strong>, <strong>mind</strong>, and{" "}
-            <strong>creativity</strong>. Join a community of like-minded individuals in beautiful locations across
-            Vietnam.
+            Discover mindful co-living spaces that nurture your{" "}
+            <strong>body</strong>, <strong>mind</strong>, and{" "}
+            <strong>creativity</strong>. Join a community of like-minded
+            individuals in beautiful locations across Vietnam.
           </p>
 
           <div className="flex flex-col sm:flex-row gap-6 justify-center mb-16">
-            <Button size="lg" className="rounded-full bg-slate-800 hover:bg-slate-700 px-10 py-6 text-lg shadow-xl">
+            <Button
+              size="lg"
+              className="rounded-full bg-slate-800 hover:bg-slate-700 px-10 py-6 text-lg shadow-xl"
+            >
               Explore Spaces
               <ArrowRight className="ml-2 h-5 w-5" />
             </Button>
@@ -197,19 +224,27 @@ export default function HomePage() {
           {/* Stats */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 max-w-4xl mx-auto">
             <div className="text-center">
-              <div className="text-3xl md:text-4xl font-bold text-slate-800">360+</div>
+              <div className="text-3xl md:text-4xl font-bold text-slate-800">
+                360+
+              </div>
               <div className="text-slate-600">Cities</div>
             </div>
             <div className="text-center">
-              <div className="text-3xl md:text-4xl font-bold text-slate-800">2,500+</div>
+              <div className="text-3xl md:text-4xl font-bold text-slate-800">
+                2,500+
+              </div>
               <div className="text-slate-600">Residents</div>
             </div>
             <div className="text-center">
-              <div className="text-3xl md:text-4xl font-bold text-slate-800">4.8★</div>
+              <div className="text-3xl md:text-4xl font-bold text-slate-800">
+                4.8★
+              </div>
               <div className="text-slate-600">Rating</div>
             </div>
             <div className="text-center">
-              <div className="text-3xl md:text-4xl font-bold text-slate-800">98%</div>
+              <div className="text-3xl md:text-4xl font-bold text-slate-800">
+                98%
+              </div>
               <div className="text-slate-600">Satisfaction</div>
             </div>
           </div>
@@ -220,9 +255,12 @@ export default function HomePage() {
       <section className="py-20 px-4 sm:px-6 lg:px-8 bg-white/40 backdrop-blur-sm">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
-            <h2 className="text-4xl md:text-5xl font-bold text-slate-800 mb-6">Most Popular Cities</h2>
+            <h2 className="text-4xl md:text-5xl font-bold text-slate-800 mb-6">
+              Most Popular Cities
+            </h2>
             <p className="text-xl text-slate-600 max-w-3xl mx-auto">
-              Discover co-living spaces in Vietnam's most vibrant cities, each with its unique ecosystem and community
+              Discover co-living spaces in Vietnam's most vibrant cities, each
+              with its unique ecosystem and community
             </p>
           </div>
 
@@ -264,31 +302,51 @@ export default function HomePage() {
 
                   {/* Price Badge */}
                   <div className="absolute top-6 right-6">
-                    <Badge className="bg-white/90 text-slate-800 font-semibold px-3 py-1">From {city.priceFrom}</Badge>
+                    <Badge className="bg-white/90 text-slate-800 font-semibold px-3 py-1">
+                      From {city.priceFrom}
+                    </Badge>
                   </div>
                 </div>
 
                 <CardContent className="p-6">
                   {/* Ecosystem Preview */}
                   <div className="space-y-4">
-                    <h4 className="font-semibold text-slate-800 mb-3">Available Services</h4>
+                    <h4 className="font-semibold text-slate-800 mb-3">
+                      Available Services
+                    </h4>
 
                     <div className="grid grid-cols-2 gap-3 text-sm">
                       <div>
-                        <div className="font-medium text-slate-700 mb-1">Residents</div>
-                        <div className="text-slate-600">{city.ecosystem.residents.length} options</div>
+                        <div className="font-medium text-slate-700 mb-1">
+                          Residents
+                        </div>
+                        <div className="text-slate-600">
+                          {city.ecosystem.residents.length} options
+                        </div>
                       </div>
                       <div>
-                        <div className="font-medium text-slate-700 mb-1">Co-working</div>
-                        <div className="text-slate-600">{city.ecosystem.coworking.length} spaces</div>
+                        <div className="font-medium text-slate-700 mb-1">
+                          Co-working
+                        </div>
+                        <div className="text-slate-600">
+                          {city.ecosystem.coworking.length} spaces
+                        </div>
                       </div>
                       <div>
-                        <div className="font-medium text-slate-700 mb-1">Experiences</div>
-                        <div className="text-slate-600">{city.ecosystem.experiences.length} activities</div>
+                        <div className="font-medium text-slate-700 mb-1">
+                          Experiences
+                        </div>
+                        <div className="text-slate-600">
+                          {city.ecosystem.experiences.length} activities
+                        </div>
                       </div>
                       <div>
-                        <div className="font-medium text-slate-700 mb-1">Specialties</div>
-                        <div className="text-slate-600">{city.ecosystem.specialties.length} unique</div>
+                        <div className="font-medium text-slate-700 mb-1">
+                          Specialties
+                        </div>
+                        <div className="text-slate-600">
+                          {city.ecosystem.specialties.length} unique
+                        </div>
                       </div>
                     </div>
 
@@ -297,7 +355,11 @@ export default function HomePage() {
                         className="w-full rounded-full bg-slate-800 hover:bg-slate-700 group-hover:bg-gradient-to-r group-hover:from-blue-600 group-hover:to-cyan-600 transition-all duration-300"
                         asChild
                       >
-                        <Link href={`/rooms/${city.name.toLowerCase().replace(/\s+/g, "-")}`}>
+                        <Link
+                          href={`/rooms/${city.name
+                            .toLowerCase()
+                            .replace(/\s+/g, "-")}`}
+                        >
                           Explore {city.name}
                           <ArrowRight className="ml-2 h-4 w-4" />
                         </Link>
@@ -326,9 +388,12 @@ export default function HomePage() {
       <section className="py-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
-            <h2 className="text-4xl md:text-5xl font-bold text-slate-800 mb-6">Our Ecosystem by Location</h2>
+            <h2 className="text-4xl md:text-5xl font-bold text-slate-800 mb-6">
+              Our Ecosystem by Location
+            </h2>
             <p className="text-xl text-slate-600 max-w-3xl mx-auto">
-              Each location offers a unique blend of services tailored to the local culture and community needs
+              Each location offers a unique blend of services tailored to the
+              local culture and community needs
             </p>
           </div>
 
@@ -337,11 +402,18 @@ export default function HomePage() {
             {popularCities.slice(0, 3).map((city, index) => (
               <div
                 key={index}
-                className={`grid grid-cols-1 lg:grid-cols-2 gap-12 items-center ${index % 2 === 1 ? "lg:grid-flow-col-dense" : ""}`}
+                className={`grid grid-cols-1 lg:grid-cols-2 gap-12 items-center ${
+                  index % 2 === 1 ? "lg:grid-flow-col-dense" : ""
+                }`}
               >
                 <div className={`${index % 2 === 1 ? "lg:col-start-2" : ""}`}>
                   <div className="relative h-96 rounded-3xl overflow-hidden shadow-2xl">
-                    <Image src={city.image || "/placeholder.svg"} alt={city.name} fill className="object-cover" />
+                    <Image
+                      src={city.image || "/placeholder.svg"}
+                      alt={city.name}
+                      fill
+                      className="object-cover"
+                    />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
                     <div className="absolute bottom-6 left-6 text-white">
                       <div className="flex items-center gap-2 mb-2">
@@ -358,18 +430,27 @@ export default function HomePage() {
                   </div>
                 </div>
 
-                <div className={`${index % 2 === 1 ? "lg:col-start-1 lg:row-start-1" : ""}`}>
+                <div
+                  className={`${
+                    index % 2 === 1 ? "lg:col-start-1 lg:row-start-1" : ""
+                  }`}
+                >
                   <div className="space-y-6">
                     <div>
-                      <h3 className="text-3xl font-bold text-slate-800 mb-4">{city.name} Ecosystem</h3>
+                      <h3 className="text-3xl font-bold text-slate-800 mb-4">
+                        {city.name} Ecosystem
+                      </h3>
                       <p className="text-lg text-slate-600 mb-6">
-                        Discover the unique blend of services and experiences available in {city.name}
+                        Discover the unique blend of services and experiences
+                        available in {city.name}
                       </p>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <Card className="p-4 bg-blue-50 border-blue-200 rounded-2xl">
-                        <h4 className="font-semibold text-slate-800 mb-2">Residents</h4>
+                        <h4 className="font-semibold text-slate-800 mb-2">
+                          Residents
+                        </h4>
                         <ul className="space-y-1 text-sm text-slate-600">
                           {city.ecosystem.residents.map((item, idx) => (
                             <li key={idx} className="flex items-center gap-2">
@@ -381,7 +462,9 @@ export default function HomePage() {
                       </Card>
 
                       <Card className="p-4 bg-green-50 border-green-200 rounded-2xl">
-                        <h4 className="font-semibold text-slate-800 mb-2">Co-working</h4>
+                        <h4 className="font-semibold text-slate-800 mb-2">
+                          Co-working
+                        </h4>
                         <ul className="space-y-1 text-sm text-slate-600">
                           {city.ecosystem.coworking.map((item, idx) => (
                             <li key={idx} className="flex items-center gap-2">
@@ -393,7 +476,9 @@ export default function HomePage() {
                       </Card>
 
                       <Card className="p-4 bg-purple-50 border-purple-200 rounded-2xl">
-                        <h4 className="font-semibold text-slate-800 mb-2">Experiences</h4>
+                        <h4 className="font-semibold text-slate-800 mb-2">
+                          Experiences
+                        </h4>
                         <ul className="space-y-1 text-sm text-slate-600">
                           {city.ecosystem.experiences.map((item, idx) => (
                             <li key={idx} className="flex items-center gap-2">
@@ -405,7 +490,9 @@ export default function HomePage() {
                       </Card>
 
                       <Card className="p-4 bg-orange-50 border-orange-200 rounded-2xl">
-                        <h4 className="font-semibold text-slate-800 mb-2">Specialties</h4>
+                        <h4 className="font-semibold text-slate-800 mb-2">
+                          Specialties
+                        </h4>
                         <ul className="space-y-1 text-sm text-slate-600">
                           {city.ecosystem.specialties.map((item, idx) => (
                             <li key={idx} className="flex items-center gap-2">
@@ -418,8 +505,15 @@ export default function HomePage() {
                     </div>
 
                     <div className="pt-4">
-                      <Button className="rounded-full bg-slate-800 hover:bg-slate-700 px-8" asChild>
-                        <Link href={`/rooms/${city.name.toLowerCase().replace(/\s+/g, "-")}`}>
+                      <Button
+                        className="rounded-full bg-slate-800 hover:bg-slate-700 px-8"
+                        asChild
+                      >
+                        <Link
+                          href={`/rooms/${city.name
+                            .toLowerCase()
+                            .replace(/\s+/g, "-")}`}
+                        >
                           Explore {city.name}
                           <ArrowRight className="ml-2 h-4 w-4" />
                         </Link>
@@ -437,10 +531,12 @@ export default function HomePage() {
       <section className="py-20 px-4 sm:px-6 lg:px-8 bg-white/40 backdrop-blur-sm">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
-            <h2 className="text-4xl md:text-5xl font-bold text-slate-800 mb-6">Our Three Pillars</h2>
+            <h2 className="text-4xl md:text-5xl font-bold text-slate-800 mb-6">
+              Our Three Pillars
+            </h2>
             <p className="text-xl text-slate-600 max-w-3xl mx-auto">
-              Next Universe is built on three fundamental pillars that work together to create a balanced and fulfilling
-              co-living experience
+              Next Universe is built on three fundamental pillars that work
+              together to create a balanced and fulfilling co-living experience
             </p>
           </div>
 
@@ -455,11 +551,16 @@ export default function HomePage() {
                 >
                   <pillar.icon className="h-10 w-10 text-white" />
                 </div>
-                <h3 className="text-2xl font-bold text-slate-800 mb-4">{pillar.title}</h3>
+                <h3 className="text-2xl font-bold text-slate-800 mb-4">
+                  {pillar.title}
+                </h3>
                 <p className="text-slate-600 mb-6">{pillar.description}</p>
                 <div className="space-y-2">
                   {pillar.features.map((feature, idx) => (
-                    <div key={idx} className="flex items-center justify-center gap-2 text-sm text-slate-600">
+                    <div
+                      key={idx}
+                      className="flex items-center justify-center gap-2 text-sm text-slate-600"
+                    >
                       <CheckCircle className="h-4 w-4 text-green-500" />
                       {feature}
                     </div>
@@ -470,7 +571,11 @@ export default function HomePage() {
           </div>
 
           <div className="text-center mt-12">
-            <Button size="lg" className="rounded-full bg-slate-800 hover:bg-slate-700 px-10" asChild>
+            <Button
+              size="lg"
+              className="rounded-full bg-slate-800 hover:bg-slate-700 px-10"
+              asChild
+            >
               <Link href="/ecosystem">
                 Explore Full Ecosystem
                 <ArrowRight className="ml-2 h-5 w-5" />
@@ -484,15 +589,21 @@ export default function HomePage() {
       <section className="py-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
-            <h2 className="text-4xl md:text-5xl font-bold text-slate-800 mb-6">What Our Community Says</h2>
+            <h2 className="text-4xl md:text-5xl font-bold text-slate-800 mb-6">
+              What Our Community Says
+            </h2>
             <p className="text-xl text-slate-600 max-w-3xl mx-auto">
-              Hear from residents who have transformed their lives through our mindful co-living ecosystem
+              Hear from residents who have transformed their lives through our
+              mindful co-living ecosystem
             </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {testimonials.map((testimonial, index) => (
-              <Card key={index} className="p-8 rounded-3xl border-0 shadow-xl bg-white/80 backdrop-blur-sm">
+              <Card
+                key={index}
+                className="p-8 rounded-3xl border-0 shadow-xl bg-white/80 backdrop-blur-sm"
+              >
                 <div className="flex items-center gap-4 mb-6">
                   <Image
                     src={testimonial.avatar || "/placeholder.svg"}
@@ -502,14 +613,21 @@ export default function HomePage() {
                     className="rounded-full"
                   />
                   <div>
-                    <h4 className="font-semibold text-slate-800">{testimonial.name}</h4>
+                    <h4 className="font-semibold text-slate-800">
+                      {testimonial.name}
+                    </h4>
                     <p className="text-sm text-slate-600">{testimonial.role}</p>
-                    <p className="text-sm text-slate-500">{testimonial.location}</p>
+                    <p className="text-sm text-slate-500">
+                      {testimonial.location}
+                    </p>
                   </div>
                 </div>
                 <div className="flex mb-4">
                   {[...Array(testimonial.rating)].map((_, i) => (
-                    <Star key={i} className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                    <Star
+                      key={i}
+                      className="h-4 w-4 fill-yellow-400 text-yellow-400"
+                    />
                   ))}
                 </div>
                 <p className="text-slate-600 italic">"{testimonial.content}"</p>
@@ -522,13 +640,18 @@ export default function HomePage() {
       {/* CTA Section */}
       <section className="py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-r from-slate-800 to-slate-700">
         <div className="max-w-4xl mx-auto text-center text-white">
-          <h2 className="text-4xl md:text-5xl font-bold mb-6">Ready to Start Your Journey?</h2>
+          <h2 className="text-4xl md:text-5xl font-bold mb-6">
+            Ready to Start Your Journey?
+          </h2>
           <p className="text-xl mb-8 opacity-90">
-            Join thousands of like-minded individuals who have found their perfect co-living experience with Next
-            Universe
+            Join thousands of like-minded individuals who have found their
+            perfect co-living experience with Next Universe
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button size="lg" className="rounded-full bg-white text-slate-800 hover:bg-gray-100 px-10 py-6 text-lg">
+            <Button
+              size="lg"
+              className="rounded-full bg-white text-slate-800 hover:bg-gray-100 px-10 py-6 text-lg"
+            >
               Find Your Space
               <ArrowRight className="ml-2 h-5 w-5" />
             </Button>
@@ -543,5 +666,5 @@ export default function HomePage() {
         </div>
       </section>
     </div>
-  )
+  );
 }
