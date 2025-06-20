@@ -60,10 +60,7 @@ export function setupAxios(axios: AxiosInstance) {
 }
 
 const api = Axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL
-  || 'localhost5000'
-  ,
-
+  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/bff',
   headers: {
     'Content-Type': 'application/json',
   },

@@ -1,0 +1,38 @@
+{
+    "hello": "Hello World",
+    "welcome": "Welcome to Next.js",
+    "nav": {
+      "rooms": "Rooms",
+      "packages": "Packages",
+      "ecosystem": "Ecosystem",
+      "profile": "Profile",
+      "signin": "Sign In",
+      "getstarted": "Get Started",
+      "forpartners": "For Partners"
+    },
+    "home": {
+      "hero": {
+        "badge": "Mindful Co-living Ecosystem",
+        "title1": "Find Your Co-living Experience with",
+        "title2": "NextU",
+        "desc1": "Discover mindful co-living spaces that nurture your",
+        "body": "body",
+        "mind": "mind",
+        "and": "and",
+        "creativity": "creativity",
+        "desc2": "Join a community of like-minded individuals in beautiful locations across Vietnam.",
+        "cta1": "Explore Spaces",
+        "cta2": "Watch Our Story",
+        "stats": {
+          "cities": "Cities",
+          "residents": "Residents",
+          "rating": "Rating",
+          "satisfaction": "Satisfaction"
+        }
+      },
+      "cities": {
+        "title": "Most Popular Cities",
+        "desc": "Discover co-living spaces in Vietnam's most vibrant cities, each with its unique ecosystem and community"
+      }
+    }
+  }

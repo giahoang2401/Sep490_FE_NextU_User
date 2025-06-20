@@ -1,13 +1,6 @@
-const createNextIntlPlugin = require('next-intl/plugin');
-
-// ✅ trỏ đúng đường dẫn:
-const withNextIntl = createNextIntlPlugin('./src/i18n/request.ts');
-
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  experimental: {
-    serverActions: true
-  }
+  // Các cấu hình Next.js khác nếu có
 };
 
-module.exports = withNextIntl(nextConfig);
+module.exports = nextConfig;

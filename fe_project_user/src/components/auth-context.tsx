@@ -1,7 +1,7 @@
 // src/context/auth-context.tsx
 "use client"
 
-import axios from "axios"
+import api from '@/utils/axiosConfig';
 import { createContext, useContext, useEffect, useState, ReactNode } from "react"
 
 type User = {
@@ -14,6 +14,7 @@ type User = {
 type AuthContextType = {
   user: User | null
   isLoggedIn: boolean
+  isAuthLoading: boolean
   login: (userData: User) => void
   logout: () => void
 }
@@ -23,19 +24,20 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const [isAuthLoading, setIsAuthLoading] = useState(true)
 
   useEffect(() => {
-    const storedUser = localStorage.getItem("nextU_user")
+    // Lấy user từ localStorage khi load lại trang
+    const storedUser = localStorage.getItem("nextU_user");
     if (storedUser) {
-      try {
-        const parsed = JSON.parse(storedUser)
-        setUser(parsed)
-        setIsLoggedIn(true)
-      } catch {
-        localStorage.removeItem("nextU_user")
-      }
+      setUser(JSON.parse(storedUser));
+      setIsLoggedIn(true);
+    } else {
+      setUser(null);
+      setIsLoggedIn(false);
     }
-  }, [])
+    setIsAuthLoading(false);
+  }, []);
 
   const login = (userData: User) => {
     setUser(userData)
@@ -43,26 +45,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem("nextU_user", JSON.stringify(userData))
   }
 
-const logout = async () => {
-  try {
-    // Gọi API logout để huỷ session / revoke token phía backend
-    await axios.post("http://localhost:5000/api/bff/auth/logout")
-
-    // Xoá dữ liệu user phía frontend
-    setUser(null)
-    setIsLoggedIn(false)
-    localStorage.removeItem("nextU_user")
-  } catch (error) {
-    console.error("Logout API failed:", error)
-    // Optional: vẫn xóa local nếu server fail, để tránh bị kẹt
-    setUser(null)
-    setIsLoggedIn(false)
-    localStorage.removeItem("nextU_user")
+  const logout = async () => {
+    try {
+      await api.post('/api/auth/logout')
+      setUser(null)
+      setIsLoggedIn(false)
+      localStorage.removeItem("nextU_user")
+      localStorage.removeItem("access_token")
+      localStorage.removeItem("refresh_token")
+    } catch (error) {
+      console.error("Logout API failed:", error)
+      setUser(null)
+      setIsLoggedIn(false)
+      localStorage.removeItem("nextU_user")
+      localStorage.removeItem("access_token")
+      localStorage.removeItem("refresh_token")
+    }
   }
-}
 
   return (
-    <AuthContext.Provider value={{ user, isLoggedIn, login, logout }}>
+    <AuthContext.Provider value={{ user, isLoggedIn, isAuthLoading, login, logout }}>
       {children}
     </AuthContext.Provider>
   )

@@ -2,28 +2,28 @@ import { config } from "@/config"
 import { deleteCookie, getCookie, hasCookie, setCookie } from "cookies-next"
 
 export const isLogged = () => {
-  return hasCookie(config.AUTH_KEY)
+  return !!localStorage.getItem("access_token");
 }
 
 export const getAccessToken = () => {
-  const accessToken = getCookie(config.AUTH_KEY)
+  const accessToken = localStorage.getItem("access_token");
   return {
     access_token: accessToken ?? ''
   }
 }
-//@ts-ignore
+
 export const saveAccessToken = (access_token) => {
   try {
-    setCookie(config.AUTH_KEY, access_token, { maxAge: 60 * 6 * 24 * 15, secure: true }) // Cookie sẽ hết hạn sau 15 ngày
+    localStorage.setItem("access_token", access_token);
   } catch (error) {
-    console.error('AUTH COOKIE SAVE ERROR', error)
+    console.error('AUTH LOCALSTORAGE SAVE ERROR', error);
   }
 }
 
 export const removeAccessToken = () => {
   try {
-    deleteCookie(config.AUTH_KEY)
+    localStorage.removeItem("access_token");
   } catch (error) {
-    console.error('AUTH COOKIE REMOVE ERROR', error)
+    console.error('AUTH LOCALSTORAGE REMOVE ERROR', error);
   }
 }

@@ -21,6 +21,11 @@ export default function ProfileInfo() {
     avatarUrl: "",
     socialLinks: "",
     address: "",
+    interests: "",
+    personalityTraits: "",
+    introduction: "",
+    cvUrl: "",
+    note: "",
   });
 
   useEffect(() => {
@@ -32,7 +37,7 @@ export default function ProfileInfo() {
       }
 
       try {
-        const res = await fetch("http://localhost:5000/api/user/profileme", {
+        const res = await fetch("http://localhost:5000/bff/api/user/profileme", {
           headers: {
             Authorization: `Bearer ${token}`,
             Accept: "application/json",
@@ -54,6 +59,11 @@ export default function ProfileInfo() {
           avatarUrl: data.avatarUrl || "",
           socialLinks: data.socialLinks || "",
           address: data.address || "",
+          interests: data.interests || "",
+          personalityTraits: data.personalityTraits || "",
+          introduction: data.introduction || "",
+          cvUrl: data.cvUrl || "",
+          note: data.note || "",
         });
       } catch (err) {
         console.error("Error fetching profile", err);
@@ -68,32 +78,46 @@ export default function ProfileInfo() {
   };
 
   const handleSave = async () => {
-  const token = localStorage.getItem("access_token");
-  if (!token) {
-    alert("Bạn chưa đăng nhập!");
-    return;
-  }
-
-  try {
-    const response = await axios.put(
-      "http://localhost:5000/api/user/updateprofile",
-      formData,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      }
-    );
-
-    if (response.data.success) {
-      setMessage(response.data.message); // ✅ Lưu message thành công
-      setIsEditing(false);
+    const token = localStorage.getItem("access_token");
+    if (!token) {
+      alert("Bạn chưa đăng nhập!");
+      return;
     }
-  } catch (error) {
-    console.error("Failed to update profile", error);
-    setMessage("Đã xảy ra lỗi khi cập nhật hồ sơ."); // ✅ fallback lỗi
-  }
-};
+
+    try {
+      const response = await axios.put(
+        "http://localhost:5000/bff/api/user/updateprofile",
+        formData,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (response.data.success) {
+        setMessage(response.data.message);
+        setIsEditing(false);
+        
+        // CẬP NHẬT USER STATE VỚI DATA MỚI
+        const updatedUser = { ...user, ...formData };
+        setUser(updatedUser);
+        
+        // Tùy chọn: Tự động ẩn message sau 3 giây
+        setTimeout(() => {
+          setMessage(null);
+        }, 3000);
+      }
+    } catch (error) {
+      console.error("Failed to update profile", error);
+      setMessage("Đã xảy ra lỗi khi cập nhật hồ sơ.");
+      
+      // Tự động ẩn error message sau 3 giây
+      setTimeout(() => {
+        setMessage(null);
+      }, 3000);
+    }
+  };
 
   if (!user) return <div className="text-center mt-10">Loading...</div>;
 
@@ -112,7 +136,7 @@ export default function ProfileInfo() {
     </CardHeader>
 
     {message && (
-      <div className="text-center text-green-600 font-medium text-sm">
+      <div className="text-center text-green-600 font-medium text-sm mb-4 px-4">
         {message}
       </div>
     )}
@@ -124,9 +148,14 @@ export default function ProfileInfo() {
           { label: "Phone", name: "phone" },
           { label: "Gender", name: "gender" },
           { label: "Date of Birth", name: "dob" },
-          { label: "Address", name: "address" },
           { label: "Avatar URL", name: "avatarUrl" },
           { label: "Social Link", name: "socialLinks" },
+          { label: "Address", name: "address" },
+          { label: "Interests", name: "interests" },
+          { label: "Personality Traits", name: "personalityTraits" },
+          { label: "Introduction", name: "introduction" },
+          { label: "CV URL", name: "cvUrl" },
+          { label: "Note", name: "note" },
         ] as const
       ).map(({ label, name }) => {
         return (

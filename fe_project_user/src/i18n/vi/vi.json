@@ -1,0 +1,38 @@
+{
+    "hello": "Xin chào thế giới",
+    "welcome": "Chào mừng đến với Next.js",
+    "nav": {
+      "rooms": "Phòng",
+      "packages": "Gói dịch vụ",
+      "ecosystem": "Hệ sinh thái",
+      "profile": "Hồ sơ",
+      "signin": "Đăng nhập",
+      "getstarted": "Bắt đầu",
+      "forpartners": "Cho đối tác"
+    },
+    "home": {
+      "hero": {
+        "badge": "Hệ sinh thái Co-living Chánh niệm",
+        "title1": "Tìm kiếm trải nghiệm Co-living cùng",
+        "title2": "NextU",
+        "desc1": "Khám phá không gian co-living chánh niệm nuôi dưỡng",
+        "body": "thân thể",
+        "mind": "tâm trí",
+        "and": "và",
+        "creativity": "sáng tạo",
+        "desc2": "Tham gia cộng đồng những người cùng chí hướng tại các địa điểm tuyệt đẹp trên khắp Việt Nam.",
+        "cta1": "Khám phá không gian",
+        "cta2": "Xem câu chuyện của chúng tôi",
+        "stats": {
+          "cities": "Thành phố",
+          "residents": "Cư dân",
+          "rating": "Đánh giá",
+          "satisfaction": "Hài lòng"
+        }
+      },
+      "cities": {
+        "title": "Các thành phố nổi bật",
+        "desc": "Khám phá không gian co-living tại các thành phố sôi động nhất Việt Nam, mỗi nơi đều có hệ sinh thái và cộng đồng riêng biệt"
+      }
+    }
+  }
