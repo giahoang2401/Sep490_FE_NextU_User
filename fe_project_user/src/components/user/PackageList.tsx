@@ -8,37 +8,45 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Package, MapPin, Clock, CheckCircle, CreditCard, XCircle, Download, QrCode } from "lucide-react"
 import { PaymentModal } from "@/components/payment-modal"
+import api from '@/utils/axiosConfig'
 
-interface PackageRequest {
-  id: string
-  fullName: string
-  email: string
-  phone: string
-  location: string
-  packageId: string
-  packageName: string
-  duration: number
-  totalPrice: number
-  status: "pending" | "approved" | "rejected" | "paid"
-  requestDate: string
-  approvedDate?: string
-  moveInDate: string
+interface PackageHistory {
+  requestId: string;
+  fullName: string;
+  requestedPackageName: string;
+  packageType: string;
+  amount: number;
+  status: string;
+  paymentStatus: string;
+  paymentMethod: string;
+  paymentTime?: string;
+  staffNote?: string;
+  approvedAt?: string;
+  messageToStaff?: string;
+  createdAt: string;
+  locationName: string;
+  moveInDate?: string;
 }
 
 export default function PackageList() {
-  const [packageRequests, setPackageRequests] = useState<PackageRequest[]>([])
+  const [packageRequests, setPackageRequests] = useState<PackageHistory[]>([])
   const [showPaymentModal, setShowPaymentModal] = useState(false)
-  const [selectedPackage, setSelectedPackage] = useState<PackageRequest | null>(null)
+  const [selectedPackage, setSelectedPackage] = useState<PackageHistory | null>(null)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const requests = JSON.parse(localStorage.getItem("packageRequests") || "[]")
-    const updatedRequests = requests.map((req: PackageRequest, index: number) => {
-      if (index === 0) {
-        return { ...req, status: "approved", approvedDate: new Date().toISOString() }
+    async function fetchHistory() {
+      setLoading(true)
+      try {
+        const res = await api.get('/api/user/memberships/history')
+        setPackageRequests(res.data || [])
+      } catch (err) {
+        setPackageRequests([])
+      } finally {
+        setLoading(false)
       }
-      return req
-    })
-    setPackageRequests(updatedRequests)
+    }
+    fetchHistory()
   }, [])
 
   const getStatusColor = (status: string) => {
@@ -50,6 +58,7 @@ export default function PackageList() {
       case "rejected":
         return "bg-red-500"
       case "paid":
+      case "Completed":
         return "bg-blue-500"
       default:
         return "bg-gray-500"
@@ -65,27 +74,50 @@ export default function PackageList() {
       case "rejected":
         return <XCircle className="h-4 w-4" />
       case "paid":
+      case "Completed":
         return <CreditCard className="h-4 w-4" />
       default:
         return <Clock className="h-4 w-4" />
     }
   }
 
-  const handlePayment = (packageRequest: PackageRequest) => {
+  const handlePayment = (packageRequest: PackageHistory) => {
     setSelectedPackage(packageRequest)
     setShowPaymentModal(true)
   }
 
   const handlePaymentSuccess = () => {
-    if (selectedPackage) {
-      const updatedRequests = packageRequests.map((req) =>
-        req.id === selectedPackage.id ? { ...req, status: "paid" as const } : req
-      )
-      setPackageRequests(updatedRequests)
-      localStorage.setItem("packageRequests", JSON.stringify(updatedRequests))
-    }
     setShowPaymentModal(false)
     setSelectedPackage(null)
+    // Refetch history after payment
+    setLoading(true)
+    api.get('/user/memberships/history').then(res => {
+      setPackageRequests(res.data || [])
+      setLoading(false)
+    })
+  }
+
+  const handleInitPayment = async (request: PackageHistory) => {
+    try {
+      const res = await api.post('/api/payments/create', {
+        RequestId: request.requestId,
+        PaymentMethod: 'VNPAY',
+        ReturnUrl: '',
+        IsDirectMembership: false
+      });
+      const redirectUrl = res.data?.Data?.redirectUrl;
+      if (redirectUrl) {
+        window.location.href = redirectUrl;
+      } else {
+        alert('Không lấy được link thanh toán!');
+      }
+    } catch (err) {
+      alert('Khởi tạo thanh toán thất bại!');
+    }
+  }
+
+  if (loading) {
+    return <div className="text-center py-12 text-slate-500">Loading...</div>
   }
 
   return (
@@ -96,21 +128,20 @@ export default function PackageList() {
             <Package className="h-16 w-16 text-slate-400 mx-auto mb-4" />
             <h3 className="text-xl font-semibold text-slate-800 mb-2">No Package Requests</h3>
             <p className="text-slate-600 mb-6">You haven't requested any packages yet.</p>
-            <Button className="rounded-full bg-slate-800 hover:bg-slate-700">Request a Package</Button>
           </CardContent>
         </Card>
       ) : (
         <div className="grid grid-cols-1 gap-6">
           {packageRequests.map((request) => (
-            <Card key={request.id} className="rounded-2xl border-0 shadow-lg">
+            <Card key={request.requestId} className="rounded-2xl border-0 shadow-lg">
               <CardHeader>
                 <div className="flex justify-between items-start">
                   <div>
                     <CardTitle className="flex items-center gap-2">
                       <MapPin className="h-5 w-5" />
-                      {request.packageName}
+                      {request.requestedPackageName}
                     </CardTitle>
-                    <p className="text-slate-600 capitalize">{request.location.replace("-", " ")}</p>
+                    <p className="text-slate-600 capitalize">{request.locationName}</p>
                   </div>
                   <Badge className={`${getStatusColor(request.status)} text-white`}>
                     {getStatusIcon(request.status)}
@@ -121,20 +152,20 @@ export default function PackageList() {
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div>
-                    <Label className="text-sm text-slate-600">Duration</Label>
-                    <p className="font-semibold">{request.duration} month{request.duration > 1 ? "s" : ""}</p>
-                  </div>
-                  <div>
-                    <Label className="text-sm text-slate-600">Total Price</Label>
-                    <p className="font-semibold">₫{request.totalPrice.toLocaleString()}</p>
+                    <Label className="text-sm text-slate-600">Amount</Label>
+                    <p className="font-semibold">₫{request.amount?.toLocaleString()}</p>
                   </div>
                   <div>
                     <Label className="text-sm text-slate-600">Request Date</Label>
-                    <p className="font-semibold">{new Date(request.requestDate).toLocaleDateString()}</p>
+                    <p className="font-semibold">{new Date(request.createdAt).toLocaleDateString()}</p>
                   </div>
                   <div>
-                    <Label className="text-sm text-slate-600">Move-in Date</Label>
-                    <p className="font-semibold">{new Date(request.moveInDate).toLocaleDateString()}</p>
+                    <Label className="text-sm text-slate-600">Status</Label>
+                    <p className="font-semibold">{request.status}</p>
+                  </div>
+                  <div>
+                    <Label className="text-sm text-slate-600">Payment</Label>
+                    <p className="font-semibold">{request.paymentStatus}</p>
                   </div>
                 </div>
 
@@ -145,7 +176,8 @@ export default function PackageList() {
                   </Alert>
                 )}
 
-                {request.status === "approved" && (
+                {/* Combo: chỉ hiện nút thanh toán khi approved và chưa paid */}
+                {request.packageType === 'combo' && request.status === "approved" && request.paymentStatus !== 'Paid' && (
                   <div className="space-y-4">
                     <Alert className="bg-green-50 border-green-200">
                       <CheckCircle className="h-4 w-4" />
@@ -156,30 +188,49 @@ export default function PackageList() {
                       onClick={() => handlePayment(request)}
                     >
                       <CreditCard className="h-4 w-4 mr-2" />
-                      Pay Now - ₫{request.totalPrice.toLocaleString()}
+                      Pay Now - ₫{request.amount?.toLocaleString()}
                     </Button>
                   </div>
                 )}
 
-                {request.status === "paid" && (
+                {/* Combo: hiện nút khởi tạo thanh toán khi PendingPayment */}
+                {request.packageType === 'combo' && request.status === 'PendingPayment' && (
+                  <div className="space-y-4">
+                    <Alert className="bg-yellow-50 border-yellow-200">
+                      <Clock className="h-4 w-4" />
+                      <AlertDescription>Your package is pending payment. Please proceed to payment.</AlertDescription>
+                    </Alert>
+                    <Button
+                      className="rounded-full bg-blue-600 hover:bg-blue-700"
+                      onClick={() => handleInitPayment(request)}
+                    >
+                      <CreditCard className="h-4 w-4 mr-2" />
+                      Khởi tạo thanh toán
+                    </Button>
+                  </div>
+                )}
+
+                {/* Basic: đã thanh toán */}
+                {(request.packageType === 'basic' && (request.paymentStatus === 'Paid' || request.status === 'Completed')) && (
                   <div className="space-y-4">
                     <Alert className="bg-blue-50 border-blue-200">
                       <CheckCircle className="h-4 w-4" />
                       <AlertDescription>Payment completed. Welcome to Next Universe!</AlertDescription>
                     </Alert>
-                    <div className="flex gap-2">
-                      <Button variant="outline" className="rounded-full">
-                        <Download className="h-4 w-4 mr-2" />
-                        Download Receipt
-                      </Button>
-                      <Button variant="outline" className="rounded-full">
-                        <QrCode className="h-4 w-4 mr-2" />
-                        Access QR Code
-                      </Button>
-                    </div>
                   </div>
                 )}
 
+                {/* Combo đã thanh toán */}
+                {request.packageType === 'combo' && (request.paymentStatus === 'Paid' || request.status === 'Completed') && (
+                  <div className="space-y-4">
+                    <Alert className="bg-blue-50 border-blue-200">
+                      <CheckCircle className="h-4 w-4" />
+                      <AlertDescription>Payment completed. Welcome to Next Universe!</AlertDescription>
+                    </Alert>
+                  </div>
+                )}
+
+                {/* Rejected */}
                 {request.status === "rejected" && (
                   <Alert variant="destructive" className="bg-red-50 border-red-200">
                     <XCircle className="h-4 w-4" />

@@ -37,7 +37,7 @@ export default function ProfileInfo() {
       }
 
       try {
-        const res = await fetch("http://localhost:5000/bff/api/user/profileme", {
+        const res = await fetch("http://localhost:5000/bff/api/user/profiles/profileme", {
           headers: {
             Authorization: `Bearer ${token}`,
             Accept: "application/json",
@@ -86,7 +86,7 @@ export default function ProfileInfo() {
 
     try {
       const response = await axios.put(
-        "http://localhost:5000/bff/api/user/updateprofile",
+        "http://localhost:5000/bff/api/user/profiles/updateprofile",
         formData,
         {
           headers: {

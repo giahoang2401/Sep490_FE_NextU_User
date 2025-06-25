@@ -5,7 +5,7 @@ export async function refreshAccessToken() {
   
     try {
       const res = await axios.post(
-        "http://localhost:5000/connect/token",
+        "http://localhost:5000/bff/api/auth/connect/token",
         new URLSearchParams({
           grant_type: "refresh_token",
           refresh_token,

@@ -19,7 +19,7 @@ export function setupAxios(axios: AxiosInstance) {
   axios.interceptors.response.use(
     function (response: AxiosResponse) {
       if (response && response.data) {
-        return Promise.resolve(response.data)
+        return Promise.resolve(response)
       }
       return Promise.resolve(response)
     },

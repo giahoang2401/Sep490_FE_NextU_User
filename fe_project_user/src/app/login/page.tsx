@@ -42,8 +42,8 @@ export default function LoginPage() {
     }
 
     try {
-      const data: any = await api.post(
-        '/api/connect/token',
+      const response = await api.post(
+        '/api/auth/connect/token',
         new URLSearchParams({
           grant_type: 'password',
           username: email,
@@ -53,6 +53,9 @@ export default function LoginPage() {
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         }
       );
+
+      const data = response.data;
+
       if (!data || !data.access_token) {
         setError("Login failed: No access_token returned from server.");
         setIsLoading(false);
@@ -76,7 +79,8 @@ export default function LoginPage() {
 
       router.push("/");
     } catch (err: any) {
-      const msg = err?.error_description || err?.error || err?.message || "Login failed.";
+      const errorData = err.response?.data;
+      const msg = errorData?.error_description || errorData?.error || errorData?.message || err?.message || "Login failed.";
       setError(msg);
       console.error("Login failed:", err);
     } finally {

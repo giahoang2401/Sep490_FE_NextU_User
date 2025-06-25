@@ -15,6 +15,7 @@ export default function PackagesPage() {
   const [showType, setShowType] = useState<'combo' | 'basic'>("basic");
   const [nextServiceNames, setNextServiceNames] = useState<{ [pkgId: string]: string[] }>({});
   const [loadingNext, setLoadingNext] = useState<{ [pkgId: string]: boolean }>({});
+  const [requestingPackageId, setRequestingPackageId] = useState<string | null>(null);
 
   const locations = ["Hà Nội", "Hải Phòng"];
 
@@ -26,9 +27,9 @@ export default function PackagesPage() {
           fetch("http://localhost:5003/api/ComboPlans").then(res => res.json()),
           fetch("http://localhost:5003/api/BasicPlans").then(res => res.json()),
         ]);
-        console.log('DEBUG basics:', basics);
+        // console.log('DEBUG basics:', basics);
         basics.forEach((b: any, i: number) => console.log('DEBUG basic package', i, b));
-        console.log('DEBUG combos:', combos);
+        // console.log('DEBUG combos:', combos);
         combos.forEach((c: any, i: number) => console.log('DEBUG combo package', i, c));
         setComboPlans(combos);
         setBasicPlans(basics);
@@ -56,7 +57,7 @@ export default function PackagesPage() {
         const res = await fetch(`http://localhost:5003/api/NextUServices/${id}`);
         if (res.ok) {
           const data = await res.json();
-          console.log('NextUserService fetch', { id, data });
+          // console.log('NextUserService fetch', { id, data });
           if (data && data.name) names.push(data.name);
         } else {
           console.log('NextUserService fetch failed', { id, status: res.status });
@@ -75,7 +76,7 @@ export default function PackagesPage() {
     const list = showType === 'basic' ? filteredBasic : filteredCombos;
     list.forEach(pkg => {
       const ids = pkg.nextUServiceIds || pkg.nextUserServiceIds || pkg.nextServiceIds || [];
-      console.log('Package', pkg.id, 'nextUServiceIds:', pkg.nextUServiceIds, 'nextUserServiceIds:', pkg.nextUserServiceIds, 'nextServiceIds:', pkg.nextServiceIds, 'ids:', ids);
+      // console.log('Package', pkg.id, 'nextUServiceIds:', pkg.nextUServiceIds, 'nextUserServiceIds:', pkg.nextUserServiceIds, 'nextServiceIds:', pkg.nextServiceIds, 'ids:', ids);
       if (ids.length > 0 && !nextServiceNames[pkg.id]) {
         fetchNextServiceNames(ids, pkg.id);
       }
@@ -85,6 +86,46 @@ export default function PackagesPage() {
     });
     // eslint-disable-next-line
   }, [showType, filteredBasic, filteredCombos]);
+
+  async function handleRequestPackage(packageIdToRequest: string, cardId: string, type: 'basic' | 'combo') {
+    if (!packageIdToRequest) {
+      alert('Không tìm thấy ID gói để yêu cầu.');
+      return;
+    }
+    setRequestingPackageId(cardId);
+    try {
+      const body: any = {
+        packageId: packageIdToRequest,
+        packageType: type === 'basic' ? 'Basic' : 'Combo',
+        messageToStaff: 'Yêu cầu đăng ký gói này.'
+      };
+      if (type === 'basic') {
+        body.redirectUrl = window.location.origin + '/payment-success';
+      }
+      if (type === 'combo') {
+        body.redirectUrl = window.location.origin + '/combo-payment-success';
+      }
+      console.log('Request body:', body);
+      const response = await api.post('/api/user/memberships/requestMember', body);
+      console.log('API response:', response);
+      const resData = response.data;
+      if (resData.success) {
+        if (type === 'basic' && resData.data?.isDirectPurchase && resData.data?.paymentUrl?.redirectUrl) {
+          window.location.href = resData.data.paymentUrl.redirectUrl;
+          return;
+        }
+        alert(resData.message || 'Yêu cầu của bạn đã được gửi. Vui lòng chờ đội ngũ xét duyệt.');
+      } else {
+        alert(resData.message || 'Gửi yêu cầu thất bại. Vui lòng thử lại.');
+      }
+    } catch (error: any) {
+      console.error('Request package error:', error);
+      const errorMessage = error.response?.data?.message || 'Có lỗi xảy ra. Vui lòng thử lại.';
+      alert(errorMessage);
+    } finally {
+      setRequestingPackageId(null);
+    }
+  }
 
   if (loading) {
     return (
@@ -302,8 +343,12 @@ export default function PackagesPage() {
                           </div>
                         ) : (
                           <div className="space-y-2">
+                            <div className="flex items-center text-sm">
+                              <Check className="h-4 w-4 text-teal-500 mr-2 flex-shrink-0" />
+                              <span className="text-slate-700 font-bold">{ basicPlans.find(b => b.id === pkg.basicPlanId)?.name || '...' }</span>
+                            </div>
                             {(nextServiceNames[pkg.id] || []).length === 0 ? (
-                              <div className="text-slate-500 text-sm italic">No included services</div>
+                              <div className="text-slate-500 text-sm italic pl-6">No additional services</div>
                             ) : (
                               nextServiceNames[pkg.id].map((name, i) => (
                                 <div key={i} className="flex items-center text-sm">
@@ -317,10 +362,12 @@ export default function PackagesPage() {
                       </div>
 
                       {/* CTA Button */}
-                      <Button className="w-full rounded-2xl bg-gradient-to-r from-slate-800 to-slate-700 hover:from-slate-700 hover:to-slate-600 text-white font-semibold py-4 shadow-lg hover:shadow-xl transition-all duration-300" asChild>
-                        <Link href="/packages/request">
-                          Request This Package
-                        </Link>
+                      <Button
+                        className="w-full rounded-2xl bg-gradient-to-r from-slate-800 to-slate-700 hover:from-slate-700 hover:to-slate-600 text-white font-semibold py-4 shadow-lg hover:shadow-xl transition-all duration-300"
+                        onClick={() => handleRequestPackage(pkg.id, pkg.id, 'basic')}
+                        disabled={requestingPackageId === pkg.id}
+                      >
+                        {requestingPackageId === pkg.id ? 'Requesting...' : 'Request This Package'}
                       </Button>
                     </CardContent>
                   </Card>
@@ -393,8 +440,12 @@ export default function PackagesPage() {
                           </div>
                         ) : (
                           <div className="space-y-2">
+                             <div className="flex items-center text-sm">
+                              <Check className="h-4 w-4 text-teal-500 mr-2 flex-shrink-0" />
+                              <span className="text-slate-700 font-bold">{ basicPlans.find(b => b.id === pkg.basicPlanId)?.name || '...' }</span>
+                            </div>
                             {(nextServiceNames[pkg.id] || []).length === 0 ? (
-                              <div className="text-slate-500 text-sm italic">No included services</div>
+                              <div className="text-slate-500 text-sm italic pl-6">No additional services</div>
                             ) : (
                               nextServiceNames[pkg.id].map((name, i) => (
                                 <div key={i} className="flex items-center text-sm">
@@ -408,10 +459,12 @@ export default function PackagesPage() {
                       </div>
 
                       {/* CTA Button */}
-                      <Button className="w-full rounded-2xl bg-gradient-to-r from-teal-600 to-blue-600 hover:from-teal-700 hover:to-blue-700 text-white font-semibold py-4 shadow-lg hover:shadow-xl transition-all duration-300" asChild>
-                        <Link href="/packages/request">
-                          Request This Package
-                        </Link>
+                      <Button
+                        className="w-full rounded-2xl bg-gradient-to-r from-teal-600 to-blue-600 hover:from-teal-700 hover:to-blue-700 text-white font-semibold py-4 shadow-lg hover:shadow-xl transition-all duration-300"
+                        onClick={() => handleRequestPackage(pkg.id, pkg.id, 'combo')}
+                        disabled={!pkg.basicPlanId || requestingPackageId === pkg.id}
+                      >
+                        {requestingPackageId === pkg.id ? 'Requesting...' : 'Request This Package'}
                       </Button>
                     </CardContent>
                   </Card>
