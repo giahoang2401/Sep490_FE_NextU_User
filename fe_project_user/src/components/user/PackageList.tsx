@@ -122,17 +122,19 @@ export default function PackageList() {
 
   return (
     <div className="space-y-6">
-      {packageRequests.length === 0 ? (
+      {packageRequests.filter(req => req.status === "Completed").length === 0 ? (
         <Card className="rounded-2xl border-0 shadow-lg">
           <CardContent className="p-12 text-center">
             <Package className="h-16 w-16 text-slate-400 mx-auto mb-4" />
-            <h3 className="text-xl font-semibold text-slate-800 mb-2">No Package Requests</h3>
-            <p className="text-slate-600 mb-6">You haven't requested any packages yet.</p>
+            <h3 className="text-xl font-semibold text-slate-800 mb-2">No Purchased Packages</h3>
+            <p className="text-slate-600 mb-6">You haven't purchased any packages yet.</p>
           </CardContent>
         </Card>
       ) : (
         <div className="grid grid-cols-1 gap-6">
-          {packageRequests.map((request) => (
+          {packageRequests
+            .filter(request => request.status === "Completed")
+            .map((request) => (
             <Card key={request.requestId} className="rounded-2xl border-0 shadow-lg">
               <CardHeader>
                 <div className="flex justify-between items-start">
@@ -156,87 +158,26 @@ export default function PackageList() {
                     <p className="font-semibold">₫{request.amount?.toLocaleString()}</p>
                   </div>
                   <div>
-                    <Label className="text-sm text-slate-600">Request Date</Label>
+                    <Label className="text-sm text-slate-600">Purchase Date</Label>
                     <p className="font-semibold">{new Date(request.createdAt).toLocaleDateString()}</p>
                   </div>
                   <div>
-                    <Label className="text-sm text-slate-600">Status</Label>
-                    <p className="font-semibold">{request.status}</p>
+                    <Label className="text-sm text-slate-600">Package Type</Label>
+                    <p className="font-semibold capitalize">{request.packageType}</p>
                   </div>
                   <div>
-                    <Label className="text-sm text-slate-600">Payment</Label>
-                    <p className="font-semibold">{request.paymentStatus}</p>
+                    <Label className="text-sm text-slate-600">Payment Method</Label>
+                    <p className="font-semibold">{request.paymentMethod}</p>
                   </div>
                 </div>
 
-                {request.status === "pending" && (
-                  <Alert className="bg-yellow-50 border-yellow-200">
-                    <Clock className="h-4 w-4" />
-                    <AlertDescription>Your request is being reviewed. Please wait.</AlertDescription>
+                {/* Completed Package */}
+                <div className="space-y-4">
+                  <Alert className="bg-blue-50 border-blue-200">
+                    <CheckCircle className="h-4 w-4" />
+                    <AlertDescription>Payment completed. Welcome to Next Universe!</AlertDescription>
                   </Alert>
-                )}
-
-                {/* Combo: chỉ hiện nút thanh toán khi approved và chưa paid */}
-                {request.packageType === 'combo' && request.status === "approved" && request.paymentStatus !== 'Paid' && (
-                  <div className="space-y-4">
-                    <Alert className="bg-green-50 border-green-200">
-                      <CheckCircle className="h-4 w-4" />
-                      <AlertDescription>Your package is approved. Proceed with payment.</AlertDescription>
-                    </Alert>
-                    <Button
-                      className="rounded-full bg-green-600 hover:bg-green-700"
-                      onClick={() => handlePayment(request)}
-                    >
-                      <CreditCard className="h-4 w-4 mr-2" />
-                      Pay Now - ₫{request.amount?.toLocaleString()}
-                    </Button>
-                  </div>
-                )}
-
-                {/* Combo: hiện nút khởi tạo thanh toán khi PendingPayment */}
-                {request.packageType === 'combo' && request.status === 'PendingPayment' && (
-                  <div className="space-y-4">
-                    <Alert className="bg-yellow-50 border-yellow-200">
-                      <Clock className="h-4 w-4" />
-                      <AlertDescription>Your package is pending payment. Please proceed to payment.</AlertDescription>
-                    </Alert>
-                    <Button
-                      className="rounded-full bg-blue-600 hover:bg-blue-700"
-                      onClick={() => handleInitPayment(request)}
-                    >
-                      <CreditCard className="h-4 w-4 mr-2" />
-                      Khởi tạo thanh toán
-                    </Button>
-                  </div>
-                )}
-
-                {/* Basic: đã thanh toán */}
-                {(request.packageType === 'basic' && (request.paymentStatus === 'Paid' || request.status === 'Completed')) && (
-                  <div className="space-y-4">
-                    <Alert className="bg-blue-50 border-blue-200">
-                      <CheckCircle className="h-4 w-4" />
-                      <AlertDescription>Payment completed. Welcome to Next Universe!</AlertDescription>
-                    </Alert>
-                  </div>
-                )}
-
-                {/* Combo đã thanh toán */}
-                {request.packageType === 'combo' && (request.paymentStatus === 'Paid' || request.status === 'Completed') && (
-                  <div className="space-y-4">
-                    <Alert className="bg-blue-50 border-blue-200">
-                      <CheckCircle className="h-4 w-4" />
-                      <AlertDescription>Payment completed. Welcome to Next Universe!</AlertDescription>
-                    </Alert>
-                  </div>
-                )}
-
-                {/* Rejected */}
-                {request.status === "rejected" && (
-                  <Alert variant="destructive" className="bg-red-50 border-red-200">
-                    <XCircle className="h-4 w-4" />
-                    <AlertDescription>Your request was rejected. Please contact support.</AlertDescription>
-                  </Alert>
-                )}
+                </div>
               </CardContent>
             </Card>
           ))}

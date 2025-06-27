@@ -16,6 +16,7 @@ import {
 import Link from "next/link";
 import Image from "next/image";
 import './globals.css'
+import PackageSection from "@/components/package/PackageSection";
 
 
 const popularCities = [
@@ -384,6 +385,27 @@ export default function HomePage() {
             </Button>
           </div>
         </div>
+      </section>
+
+      {/* Package Section */}
+      <section className="py-20 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl md:text-5xl font-bold text-slate-800 mb-6">
+              Featured Packages
+            </h2>
+            <p className="text-xl text-slate-600 max-w-3xl mx-auto">
+              Discover our most popular co-living packages designed to enhance your lifestyle
+            </p>
+          </div>
+        </div>
+        <PackageSection 
+          showHero={false} 
+          showLocationFilter={false} 
+          showTypeFilter={true}
+          maxPackages={3}
+          className="bg-transparent"
+        />
       </section>
 
       {/* Ecosystem Overview by Location */}

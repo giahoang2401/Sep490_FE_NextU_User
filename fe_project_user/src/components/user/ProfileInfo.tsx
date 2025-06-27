@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Edit } from "lucide-react";
-import axios from "axios";
+import api from "@/utils/axiosConfig";
 
 export default function ProfileInfo() {
   const [user, setUser] = useState<any>(null);
@@ -30,26 +30,9 @@ export default function ProfileInfo() {
 
   useEffect(() => {
     const fetchProfile = async () => {
-      const token = localStorage.getItem("access_token");
-      if (!token) {
-        console.warn("Missing access_token");
-        return;
-      }
-
       try {
-        const res = await fetch("http://localhost:5000/bff/api/user/profiles/profileme", {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            Accept: "application/json",
-          },
-        });
-
-        if (!res.ok) {
-          console.error("Failed to fetch profile:", res.status);
-          return;
-        }
-
-        const data = await res.json();
+        const response = await api.get("/api/user/profiles/profileme");
+        const data = response.data || response; // fallback nếu api đã custom trả về data luôn
         setUser(data);
         setFormData({
           fullName: data.fullName || "",
@@ -78,44 +61,24 @@ export default function ProfileInfo() {
   };
 
   const handleSave = async () => {
-    const token = localStorage.getItem("access_token");
-    if (!token) {
-      alert("Bạn chưa đăng nhập!");
-      return;
-    }
-
     try {
-      const response = await axios.put(
-        "http://localhost:5000/bff/api/user/profiles/updateprofile",
-        formData,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
+      const response = await api.put(
+        "/api/user/profiles/updateprofile",
+        formData
       );
-
-      if (response.data.success) {
-        setMessage(response.data.message);
+      const resData = response.data || response;
+      if (resData.success) {
+        setMessage(resData.message);
         setIsEditing(false);
-        
         // CẬP NHẬT USER STATE VỚI DATA MỚI
         const updatedUser = { ...user, ...formData };
         setUser(updatedUser);
-        
-        // Tùy chọn: Tự động ẩn message sau 3 giây
-        setTimeout(() => {
-          setMessage(null);
-        }, 3000);
+        setTimeout(() => setMessage(null), 3000);
       }
     } catch (error) {
       console.error("Failed to update profile", error);
       setMessage("Đã xảy ra lỗi khi cập nhật hồ sơ.");
-      
-      // Tự động ẩn error message sau 3 giây
-      setTimeout(() => {
-        setMessage(null);
-      }, 3000);
+      setTimeout(() => setMessage(null), 3000);
     }
   };
 
