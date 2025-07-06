@@ -122,7 +122,10 @@ export default function PackageList() {
 
   return (
     <div className="space-y-6">
-      {packageRequests.filter(req => req.status === "Completed").length === 0 ? (
+      {packageRequests.filter(req => 
+        req.status === "Completed" || 
+        (req.packageType === 'combo' && req.status === "PendingPayment")
+      ).length === 0 ? (
         <Card className="rounded-2xl border-0 shadow-lg">
           <CardContent className="p-12 text-center">
             <Package className="h-16 w-16 text-slate-400 mx-auto mb-4" />
@@ -133,7 +136,10 @@ export default function PackageList() {
       ) : (
         <div className="grid grid-cols-1 gap-6">
           {packageRequests
-            .filter(request => request.status === "Completed")
+            .filter(request => 
+              request.status === "Completed" || 
+              (request.packageType === 'combo' && request.status === "PendingPayment")
+            )
             .map((request) => (
             <Card key={request.requestId} className="rounded-2xl border-0 shadow-lg">
               <CardHeader>
@@ -172,12 +178,31 @@ export default function PackageList() {
                 </div>
 
                 {/* Completed Package */}
-                <div className="space-y-4">
-                  <Alert className="bg-blue-50 border-blue-200">
-                    <CheckCircle className="h-4 w-4" />
-                    <AlertDescription>Payment completed. Welcome to Next Universe!</AlertDescription>
-                  </Alert>
-                </div>
+                {request.status === "Completed" && (
+                  <div className="space-y-4">
+                    <Alert className="bg-blue-50 border-blue-200">
+                      <CheckCircle className="h-4 w-4" />
+                      <AlertDescription>Payment completed. Welcome to Next Universe!</AlertDescription>
+                    </Alert>
+                  </div>
+                )}
+
+                {/* Combo PendingPayment - hiện nút khởi tạo thanh toán */}
+                {request.packageType === 'combo' && request.status === 'PendingPayment' && (
+                  <div className="space-y-4">
+                    <Alert className="bg-yellow-50 border-yellow-200">
+                      <Clock className="h-4 w-4" />
+                      <AlertDescription>Your package is pending payment. Please proceed to payment.</AlertDescription>
+                    </Alert>
+                    <Button
+                      className="rounded-full bg-blue-600 hover:bg-blue-700"
+                      onClick={() => handleInitPayment(request)}
+                    >
+                      <CreditCard className="h-4 w-4 mr-2" />
+                      Khởi tạo thanh toán
+                    </Button>
+                  </div>
+                )}
               </CardContent>
             </Card>
           ))}

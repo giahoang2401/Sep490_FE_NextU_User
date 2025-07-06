@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Check, X, MapPin, Star, Clock, Zap, Shield, Award, Sparkles } from "lucide-react"
 import Link from "next/link"
+import { useRouter } from "next/navigation";
 
 interface PackageSectionProps {
   showHero?: boolean;
@@ -30,6 +31,7 @@ export default function PackageSection({
   const [nextServiceNames, setNextServiceNames] = useState<{ [pkgId: string]: string[] }>({});
   const [loadingNext, setLoadingNext] = useState<{ [pkgId: string]: boolean }>({});
   const [requestingPackageId, setRequestingPackageId] = useState<string | null>(null);
+  const router = useRouter();
 
   const locations = ["Hà Nội", "Hải Phòng"];
 
@@ -37,10 +39,35 @@ export default function PackageSection({
     async function fetchData() {
       setLoading(true);
       try {
-        const [combos, basics] = await Promise.all([
-          fetch("http://localhost:5003/api/ComboPlans").then(res => res.json()),
-          fetch("http://localhost:5003/api/BasicPlans").then(res => res.json()),
+        const [combosRes, basicsRes] = await Promise.all([
+          api.get("/api/membership/ComboPlans"),
+          api.get("/api/membership/BasicPlans"),
         ]);
+        let combos = combosRes.data || combosRes;
+        let basics = basicsRes.data || basicsRes;
+
+        // Lấy duration cho từng basic plan
+        basics = await Promise.all(basics.map(async (b: any) => {
+          try {
+            const durationRes = await api.get(`/api/membership/BasicPlans/${b.id}/duration`);
+            b.durations = durationRes.data || durationRes;
+          } catch {
+            b.durations = [];
+          }
+          return b;
+        }));
+
+        // Lấy duration cho từng combo plan
+        combos = await Promise.all(combos.map(async (c: any) => {
+          try {
+            const durationRes = await api.get(`/api/membership/ComboPlans/${c.id}/duration`);
+            c.durations = durationRes.data || durationRes;
+          } catch {
+            c.durations = [];
+          }
+          return c;
+        }));
+
         setComboPlans(combos);
         setBasicPlans(basics);
       } catch (err) {
@@ -64,13 +91,9 @@ export default function PackageSection({
     try {
       const names: string[] = [];
       for (const id of ids) {
-        const res = await fetch(`http://localhost:5003/api/NextUServices/${id}`);
-        if (res.ok) {
-          const data = await res.json();
-          if (data && data.name) names.push(data.name);
-        } else {
-          console.log('NextUserService fetch failed', { id, status: res.status });
-        }
+        const res = await api.get(`/api/membership/NextUServices/${id}`);
+        const data = res.data || res;
+        if (data && data.name) names.push(data.name);
       }
       setNextServiceNames((prev) => ({ ...prev, [pkgId]: names }));
     } catch (err) {
@@ -84,7 +107,8 @@ export default function PackageSection({
   useEffect(() => {
     const list = showType === 'basic' ? filteredBasic : filteredCombos;
     list.forEach(pkg => {
-      const ids = pkg.nextUServiceIds || pkg.nextUserServiceIds || pkg.nextServiceIds || [];
+      console.log('DEBUG package:', pkg);
+      const ids = pkg.serviceIds || pkg.nextUServiceIds || pkg.nextUserServiceIds || pkg.nextServiceIds || [];
       if (ids.length > 0 && !nextServiceNames[pkg.id]) {
         fetchNextServiceNames(ids, pkg.id);
       }
@@ -99,26 +123,20 @@ export default function PackageSection({
     }
     setRequestingPackageId(cardId);
     try {
+      if (type === 'basic') {
+        // Chuyển sang trang detail gói basic
+        router.push(`/packages/basic/${packageIdToRequest}`);
+        return;
+      }
       const body: any = {
         packageId: packageIdToRequest,
-        packageType: type === 'basic' ? 'Basic' : 'Combo',
+        packageType: 'Combo',
         messageToStaff: 'Yêu cầu đăng ký gói này.'
       };
-      if (type === 'basic') {
-        body.redirectUrl = window.location.origin + '/payment-success';
-      }
-      if (type === 'combo') {
-        body.redirectUrl = window.location.origin + '/combo-payment-success';
-      }
-      console.log('Request body:', body);
+      body.redirectUrl = window.location.origin + '/combo-payment-success';
       const response = await api.post('/api/user/memberships/requestMember', body);
-      console.log('API response:', response);
       const resData = response.data;
       if (resData.success) {
-        if (type === 'basic' && resData.data?.isDirectPurchase && resData.data?.paymentUrl?.redirectUrl) {
-          window.location.href = resData.data.paymentUrl.redirectUrl;
-          return;
-        }
         alert(resData.message || 'Yêu cầu của bạn đã được gửi. Vui lòng chờ đội ngũ xét duyệt.');
       } else {
         alert(resData.message || 'Gửi yêu cầu thất bại. Vui lòng thử lại.');
@@ -360,7 +378,19 @@ export default function PackageSection({
                           </div>
                           <div className="flex justify-between">
                             <span className="text-slate-600">Duration:</span>
-                            <span className="font-semibold text-slate-800">{pkg.packageDurationName}</span>
+                            <span className="font-semibold text-slate-800">
+                              {(() => {
+                                if (Array.isArray(pkg.durations) && pkg.durations.length > 0) {
+                                  return pkg.durations.map((d: any) =>
+                                    d.value && d.unit ? `${d.value} ${d.unit}` : d.durationName || ''
+                                  ).join(', ');
+                                }
+                                if (pkg.durations && typeof pkg.durations === 'object' && pkg.durations.value && pkg.durations.unit) {
+                                  return `${pkg.durations.value} ${pkg.durations.unit}`;
+                                }
+                                return 'N/A';
+                              })()}
+                            </span>
                           </div>
                         </div>
                       </div>
