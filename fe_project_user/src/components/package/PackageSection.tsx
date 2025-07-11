@@ -133,7 +133,7 @@ export default function PackageSection({
         packageType: 'Combo',
         messageToStaff: 'Yêu cầu đăng ký gói này.'
       };
-      body.redirectUrl = window.location.origin + '/combo-payment-success';
+      body.redirectUrl = (typeof window !== 'undefined' ? window.location.origin : '') + '/combo-payment-success';
       const response = await api.post('/api/user/memberships/requestMember', body);
       const resData = response.data;
       if (resData.success) {
@@ -428,7 +428,7 @@ export default function PackageSection({
                         onClick={() => handleRequestPackage(pkg.id, pkg.id, 'basic')}
                         disabled={requestingPackageId === pkg.id}
                       >
-                        {requestingPackageId === pkg.id ? 'Requesting...' : 'Request This Package'}
+                        {requestingPackageId === pkg.id ? 'Requesting...' : 'Detail package'}
                       </Button>
                     </CardContent>
                   </Card>
@@ -525,7 +525,7 @@ export default function PackageSection({
                         onClick={() => handleRequestPackage(pkg.id, pkg.id, 'combo')}
                         disabled={!pkg.basicPlanId || requestingPackageId === pkg.id}
                       >
-                        {requestingPackageId === pkg.id ? 'Requesting...' : 'Request This Package'}
+                        {requestingPackageId === pkg.id ? 'Requesting...' : 'Detail'}
                       </Button>
                     </CardContent>
                   </Card>

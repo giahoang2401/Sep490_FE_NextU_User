@@ -3,6 +3,7 @@
 
 import api from '@/utils/axiosConfig';
 import { createContext, useContext, useEffect, useState, ReactNode } from "react"
+import { useClientOnly } from '@/hooks/use-hydration';
 
 type User = {
   name: string
@@ -25,24 +26,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [isAuthLoading, setIsAuthLoading] = useState(true)
+  const isClient = useClientOnly()
 
   useEffect(() => {
-    // Lấy user từ localStorage khi load lại trang
-    const storedUser = localStorage.getItem("nextU_user");
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
-      setIsLoggedIn(true);
-    } else {
-      setUser(null);
-      setIsLoggedIn(false);
+    if (isClient) {
+      // Lấy user từ localStorage khi load lại trang
+      const storedUser = localStorage.getItem("nextU_user");
+      if (storedUser) {
+        setUser(JSON.parse(storedUser));
+        setIsLoggedIn(true);
+      } else {
+        setUser(null);
+        setIsLoggedIn(false);
+      }
     }
     setIsAuthLoading(false);
-  }, []);
+  }, [isClient]);
 
   const login = (userData: User) => {
     setUser(userData)
     setIsLoggedIn(true)
-    localStorage.setItem("nextU_user", JSON.stringify(userData))
+    if (typeof window !== 'undefined') {
+      localStorage.setItem("nextU_user", JSON.stringify(userData))
+    }
   }
 
   const logout = async () => {
@@ -50,16 +56,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await api.post('/api/auth/logout')
       setUser(null)
       setIsLoggedIn(false)
-      localStorage.removeItem("nextU_user")
-      localStorage.removeItem("access_token")
-      localStorage.removeItem("refresh_token")
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem("nextU_user")
+        localStorage.removeItem("access_token")
+        localStorage.removeItem("refresh_token")
+      }
     } catch (error) {
       console.error("Logout API failed:", error)
       setUser(null)
       setIsLoggedIn(false)
-      localStorage.removeItem("nextU_user")
-      localStorage.removeItem("access_token")
-      localStorage.removeItem("refresh_token")
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem("nextU_user")
+        localStorage.removeItem("access_token")
+        localStorage.removeItem("refresh_token")
+      }
     }
   }
 

@@ -2,7 +2,17 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Calendar, Users, Wifi, Bed, Bath, MapPin, Star, Clock, CheckCircle } from "lucide-react";
+import {
+  Calendar,
+  Users,
+  Wifi,
+  Bed,
+  Bath,
+  MapPin,
+  Star,
+  Clock,
+  CheckCircle,
+} from "lucide-react";
 import Image from "next/image";
 import { useState } from "react";
 import { DatePickerModal } from "@/components/date-picker-modal";
@@ -25,7 +35,10 @@ interface RoomDetailProps {
     price: number;
   };
   selectedDates: { moveIn: Date | null; moveOut: Date | null };
-  setSelectedDates: (dates: { moveIn: Date | null; moveOut: Date | null }) => void;
+  setSelectedDates: (dates: {
+    moveIn: Date | null;
+    moveOut: Date | null;
+  }) => void;
   duration: string;
   setDuration: (duration: string) => void;
   showDatePicker: boolean;
@@ -86,7 +99,9 @@ export default function RoomDetail({
           <div className="lg:col-span-2">
             {/* Header */}
             <div className="mb-6">
-              <h1 className="text-3xl font-bold text-slate-800 mb-2">{roomData.name}</h1>
+              <h1 className="text-3xl font-bold text-slate-800 mb-2">
+                {roomData.name}
+              </h1>
               <div className="flex items-center gap-4 text-slate-600">
                 <div className="flex items-center gap-1">
                   <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
@@ -155,12 +170,18 @@ export default function RoomDetail({
               <TabsContent value="details" className="mt-6">
                 <div className="space-y-6">
                   <div>
-                    <h3 className="text-xl font-semibold text-slate-800 mb-3">Description</h3>
-                    <p className="text-slate-600 leading-relaxed">{roomData.description}</p>
+                    <h3 className="text-xl font-semibold text-slate-800 mb-3">
+                      Description
+                    </h3>
+                    <p className="text-slate-600 leading-relaxed">
+                      {roomData.description}
+                    </p>
                   </div>
 
                   <div>
-                    <h3 className="text-xl font-semibold text-slate-800 mb-4">Amenities</h3>
+                    <h3 className="text-xl font-semibold text-slate-800 mb-4">
+                      Amenities
+                    </h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       {roomData.amenities.map((amenity, index) => (
                         <div key={index} className="flex items-center gap-2">
@@ -175,13 +196,17 @@ export default function RoomDetail({
 
               <TabsContent value="rooms" className="mt-6">
                 <div className="text-center py-8">
-                  <p className="text-slate-600">Room layouts and floor plans coming soon...</p>
+                  <p className="text-slate-600">
+                    Room layouts and floor plans coming soon...
+                  </p>
                 </div>
               </TabsContent>
 
               <TabsContent value="community" className="mt-6">
                 <div className="text-center py-8">
-                  <p className="text-slate-600">Community information and resident profiles...</p>
+                  <p className="text-slate-600">
+                    Community information and resident profiles...
+                  </p>
                 </div>
               </TabsContent>
 
@@ -193,7 +218,9 @@ export default function RoomDetail({
 
               <TabsContent value="faq" className="mt-6">
                 <div className="text-center py-8">
-                  <p className="text-slate-600">Frequently asked questions...</p>
+                  <p className="text-slate-600">
+                    Frequently asked questions...
+                  </p>
                 </div>
               </TabsContent>
             </Tabs>
@@ -204,7 +231,9 @@ export default function RoomDetail({
             <Card className="sticky top-24 rounded-2xl border-0 shadow-lg">
               <CardContent className="p-6">
                 <div className="text-center mb-6">
-                  <div className="text-3xl font-bold text-slate-800">₫{roomData.price.toLocaleString()}</div>
+                  <div className="text-3xl font-bold text-slate-800">
+                    ₫{roomData.price.toLocaleString()}
+                  </div>
                   <div className="text-slate-600">per month</div>
                 </div>
 
@@ -258,8 +287,16 @@ export default function RoomDetail({
       </div>
 
       {/* Modals */}
-      <DatePickerModal open={showDatePicker} onOpenChange={setShowDatePicker} onDatesSelect={setSelectedDates} />
-      <DurationModal open={showDurationPicker} onOpenChange={setShowDurationPicker} onDurationSelect={setDuration} />
+      <DatePickerModal
+        open={showDatePicker}
+        onOpenChange={setShowDatePicker}
+        onDatesSelect={setSelectedDates}
+      />
+      <DurationModal
+        open={showDurationPicker}
+        onOpenChange={setShowDurationPicker}
+        onDurationSelect={setDuration}
+      />
       <BookingModal
         open={showBookingModal}
         onOpenChange={setShowBookingModal}
@@ -269,4 +306,4 @@ export default function RoomDetail({
       />
     </div>
   );
-} 
+}

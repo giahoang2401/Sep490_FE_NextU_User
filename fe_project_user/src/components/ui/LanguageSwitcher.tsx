@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+  import { useClientOnly } from '@/hooks/use-hydration';
 
 const languages = [
   {
@@ -19,20 +20,25 @@ export default function LanguageSwitcher() {
   const { i18n } = useTranslation();
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState(languages[0]);
+  const isClient = useClientOnly();
   const dropdownRef = useRef<HTMLDivElement | null>(null);
 
   const changeLanguage = (lang: typeof selected) => {
     i18n.changeLanguage(lang.code);
-    localStorage.setItem('i18nextLng', lang.code);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('i18nextLng', lang.code);
+    }
     setSelected(lang);
     setOpen(false);
   };
 
   useEffect(() => {
-    const savedLang = localStorage.getItem('i18nextLng');
-    const matched = languages.find((l) => l.code === savedLang);
-    if (matched) setSelected(matched);
-  }, []);
+    if (isClient) {
+      const savedLang = localStorage.getItem('i18nextLng');
+      const matched = languages.find((l) => l.code === savedLang);
+      if (matched) setSelected(matched);
+    }
+  }, [isClient]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -43,6 +49,16 @@ export default function LanguageSwitcher() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // Không render gì cho đến khi component đã mount ở client-side
+  if (!isClient) {
+    return (
+      <div className="inline-flex items-center gap-2 rounded-md px-2 py-1 bg-white">
+        <div className="w-5 h-5 rounded-sm bg-gray-200 animate-pulse"></div>
+        <span className="font-medium text-sm text-gray-400">...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="relative inline-block text-left" ref={dropdownRef}>

@@ -124,73 +124,16 @@ export default function ProfileInfo() {
         return (
           <div key={name}>
             <Label>{label}</Label>
-
             {name === "gender" ? (
-              <select
-                name="gender"
-                value={formData.gender}
-                disabled={!isEditing}
-                onChange={(e) =>
-                  setFormData({ ...formData, gender: e.target.value })
-                }
-                className="rounded-xl border px-3 py-2 w-full"
-              >
-                <option value="">Select gender</option>
-                <option value="Male">Male</option>
-                <option value="Female">Female</option>
-              </select>
+              <div className="rounded-xl border px-3 py-2 w-full bg-gray-100">{formData.gender}</div>
             ) : name === "dob" ? (
-              <Input
-                name="dob"
-                type="date"
-                value={formData.dob}
-                disabled={!isEditing}
-                onChange={(e) =>
-                  setFormData({ ...formData, dob: e.target.value })
-                }
-                className="rounded-xl"
-              />
+              <div className="rounded-xl border px-3 py-2 w-full bg-gray-100">{formData.dob}</div>
             ) : (
-              <Input
-                name={name}
-                value={formData[name]}
-                disabled={!isEditing}
-                onChange={handleChange}
-                className="rounded-xl"
-              />
+              <div className="rounded-xl border px-3 py-2 w-full bg-gray-100 break-all">{formData[name]}</div>
             )}
           </div>
         );
       })}
-
-      <div className="pt-4 flex gap-4">
-        {isEditing ? (
-          <>
-            <Button
-              onClick={handleSave}
-              className="rounded-full bg-slate-800"
-            >
-              Save Changes
-            </Button>
-
-            <Button
-              variant="outline"
-              onClick={() => setIsEditing(false)}
-              className="rounded-full"
-            >
-              Cancel
-            </Button>
-          </>
-        ) : (
-          <Button
-            onClick={() => setIsEditing(true)}
-            className="rounded-full bg-slate-800"
-          >
-            <Edit className="h-4 w-4 mr-2" />
-            Edit Profile
-          </Button>
-        )}
-      </div>
     </CardContent>
   </Card>
 );

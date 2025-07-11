@@ -107,7 +107,9 @@ export default function PackageList() {
       });
       const redirectUrl = res.data?.Data?.redirectUrl;
       if (redirectUrl) {
-        window.location.href = redirectUrl;
+        if (typeof window !== 'undefined') {
+          window.location.href = redirectUrl;
+        }
       } else {
         alert('Không lấy được link thanh toán!');
       }
