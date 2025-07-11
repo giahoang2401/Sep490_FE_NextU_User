@@ -39,9 +39,12 @@ export function AuthStatus() {
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => router.push("/account")}>Profile</DropdownMenuItem>
-        <DropdownMenuItem onClick={() => router.push("/bookings")}>My Bookings</DropdownMenuItem>
-        <DropdownMenuItem onClick={() => router.push("/settings")}>Settings</DropdownMenuItem>
+        <DropdownMenuItem onClick={() => router.push("/account")}>Account</DropdownMenuItem>
+        <DropdownMenuItem onClick={() => router.push("/my-bookings")}>My Bookings</DropdownMenuItem>
+        <DropdownMenuItem onClick={() => router.push("/my-stays")}>My Stays</DropdownMenuItem>
+
+     
+
         <DropdownMenuSeparator />
         <DropdownMenuItem
           onClick={() => {

@@ -385,7 +385,7 @@ export default function BasicRoomPackageDetail({ id, router }: { id: string, rou
                             <div className="text-slate-600 mb-1">{room.descriptionDetails}</div>
                             <div className="text-slate-500 text-sm mb-1">Tầng: {room.floor} | Mã phòng: {room.roomCode}</div>
                             <div className="text-slate-500 text-sm mb-1">Loại: {room.roomTypeName}</div>
-                            <div className="text-slate-500 text-sm mb-1">Trạng thái: {room.status}</div>
+                          
                             {/* Trạng thái phòng */}
                             <div className="mt-2 text-sm">
                               {isAvailable && <span className="text-green-600 font-semibold">Available</span>}

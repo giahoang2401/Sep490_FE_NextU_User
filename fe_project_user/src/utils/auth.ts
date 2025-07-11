@@ -12,7 +12,7 @@ export const getAccessToken = () => {
   }
 }
 
-export const saveAccessToken = (access_token) => {
+export const saveAccessToken = (access_token: string) => {
   try {
     localStorage.setItem("access_token", access_token);
   } catch (error) {

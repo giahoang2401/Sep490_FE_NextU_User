@@ -45,12 +45,6 @@ export function Navigation() {
             <LanguageSwitcher />
             {isLoggedIn ? (
               <div className="flex items-center space-x-4">
-                <Link
-                  href="/profile"
-                  className="text-[#1d2951] hover:text-[#35b9da] font-medium transition-colors"
-                >
-                  {t('nav.profile')}
-                </Link>
                 <AuthStatus />
               </div>
             ) : (
@@ -123,14 +117,7 @@ export function Navigation() {
             >
               {t('nav.ecosystem')}
             </Link>
-            {isLoggedIn ? (
-              <Link
-                href="/profile"
-                className="block text-[#1d2951] hover:text-[#35b9da] font-medium"
-              >
-                {t('nav.profile')}
-              </Link>
-            ) : (
+            {isLoggedIn ? null : (
               <div className="flex flex-col space-y-2 pt-4">
                 <Button
                   variant="outline"
