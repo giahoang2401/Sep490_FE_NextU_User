@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
 import { useState } from "react"
+import type { DateRange } from "react-day-picker"
 import { AlertTriangle } from "lucide-react"
 
 interface DatePickerModalProps {
@@ -13,15 +14,12 @@ interface DatePickerModalProps {
 }
 
 export function DatePickerModal({ open, onOpenChange, onDatesSelect }: DatePickerModalProps) {
-  const [moveInDate, setMoveInDate] = useState<Date | undefined>()
+  const [moveIn, setMoveIn] = useState<Date | undefined>(undefined);
 
   const handleConfirm = () => {
-    onDatesSelect({
-      moveIn: moveInDate || null,
-      moveOut: null,
-    })
-    onOpenChange(false)
-  }
+    onDatesSelect({ moveIn: moveIn || null, moveOut: null });
+    onOpenChange(false);
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -34,8 +32,8 @@ export function DatePickerModal({ open, onOpenChange, onDatesSelect }: DatePicke
           <div className="flex justify-center w-full mb-10">
             <Calendar
               mode="single"
-              selected={moveInDate}
-              onSelect={setMoveInDate}
+              selected={moveIn}
+              onSelect={setMoveIn}
               className="rounded-md border-0 text-lg w-full"
               disabled={date => date < new Date(new Date().setDate(new Date().getDate() + 1))}
             />
@@ -43,7 +41,7 @@ export function DatePickerModal({ open, onOpenChange, onDatesSelect }: DatePicke
           <div className="flex justify-center w-full">
             <Button
               onClick={handleConfirm}
-              disabled={!moveInDate}
+              disabled={!moveIn}
               className="rounded-full bg-black hover:bg-gray-800 text-white px-10 py-2 text-lg font-semibold shadow min-w-[220px]"
             >
               Confirm Date
@@ -52,5 +50,5 @@ export function DatePickerModal({ open, onOpenChange, onDatesSelect }: DatePicke
         </div>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

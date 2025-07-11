@@ -3,9 +3,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Star, MapPin, Bed, Bath, Users, Wifi, CheckCircle, Calendar, Clock, Calendar as CalendarIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DatePickerModal } from "@/components/date-picker-modal";
-import { DurationModal } from "@/components/duration-modal";
+// import { DurationModal } from "@/components/duration-modal";
 import api from "@/utils/axiosConfig";
 import { useRouter } from "next/navigation";
+// Thêm import cho date
+import { format } from 'date-fns';
 
 function DetailsTab({ pkg, amenities }: { pkg: any; amenities: string[] }) {
   return (
@@ -47,10 +49,15 @@ export default function BasicRoomPackageDetail({ id, router }: { id: string, rou
   // Booking states
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedDates, setSelectedDates] = useState<{ moveIn: Date | null; moveOut: Date | null }>({ moveIn: null, moveOut: null });
+  // Đồng bộ availabilityDates (dạng yyyy-MM-dd) cho check availability API
+  const [availabilityDates, setAvailabilityDates] = useState<{ from: string; to: string }>({ from: '', to: '' });
+  // Xác định bên nào đang mở modal (left/right)
+  const [datePickerSource, setDatePickerSource] = useState<'left' | 'right' | null>(null);
   const [duration, setDuration] = useState<any>(null); // duration object
   const [activeTab, setActiveTab] = useState<string>("details");
   const [hoveredRoomId, setHoveredRoomId] = useState<string | null>(null);
   const [isPaying, setIsPaying] = useState(false);
+  const [roomAvailability, setRoomAvailability] = useState<any>({}); // { [roomId]: { viewedBookingStatus, from, to } }
 
   // Lưu selectedRoom vào localStorage để giữ khi reload
   useEffect(() => {
@@ -146,6 +153,105 @@ export default function BasicRoomPackageDetail({ id, router }: { id: string, rou
     }
   };
 
+  // Hàm check trạng thái tất cả phòng
+  const checkAllRoomsAvailability = async (from?: string, to?: string) => {
+    console.log('[DEBUG] checkAllRoomsAvailability called', { from, to, roomsCount: rooms.length });
+    if (!rooms || rooms.length === 0) return;
+    
+    console.log('Calling checkAllRoomsAvailability with:', { from, to, roomsCount: rooms.length });
+    
+    const results: any = {};
+    await Promise.all(
+      rooms.map(async (room: any) => {
+        try {
+          const params: any = {};
+          if (from) params.from = from;
+          if (to) params.to = to;
+          
+          console.log(`Checking room ${room.id} with params:`, params);
+          
+          const res = await api.get(`/api/membership/Bookings/room/${room.id}`, { params });
+          if (Array.isArray(res.data) && res.data.length > 0) {
+            results[room.id] = {
+              viewedBookingStatus: res.data[0].viewedBookingStatus,
+              from: from || '',
+              to: to || '',
+              startDate: from ? res.data[0].startDate : null,
+              endDate: from ? res.data[0].endDate : null,
+            };
+          } else {
+            results[room.id] = { viewedBookingStatus: 'unknown', from: from || '', to: to || '', startDate: null, endDate: null };
+          }
+        } catch (error) {
+          console.error(`Error checking room ${room.id}:`, error);
+          results[room.id] = { viewedBookingStatus: 'unknown', from: from || '', to: to || '', startDate: null, endDate: null };
+        }
+      })
+    );
+    
+    console.log('Availability results:', results);
+    setRoomAvailability(results);
+  };
+
+  // Khi load trang hoặc có availabilityDates mới, check trạng thái tất cả phòng
+  useEffect(() => {
+    console.log('[DEBUG] useEffect triggered', { rooms, availabilityDates });
+    if (rooms && rooms.length > 0) {
+      checkAllRoomsAvailability(availabilityDates.from, availabilityDates.to);
+    }
+  }, [rooms, availabilityDates.from, availabilityDates.to]);
+
+  // Khi chọn lịch, chỉ nhận moveIn, tự động tính moveOut dựa vào duration
+  const handleDateRangeSelect = async (dates: { moveIn: Date | null; moveOut: Date | null }) => {
+    let moveOut: Date | null = null;
+    if (dates.moveIn && duration) {
+      moveOut = new Date(dates.moveIn);
+      if (duration.planDurationUnit === 'Month') {
+        moveOut.setMonth(moveOut.getMonth() + Number(duration.planDurationValue));
+      } else if (duration.planDurationUnit === 'Year') {
+        moveOut.setFullYear(moveOut.getFullYear() + Number(duration.planDurationValue));
+      }
+    }
+    setSelectedDates({ moveIn: dates.moveIn, moveOut });
+    setAvailabilityDates({
+      from: dates.moveIn ? dates.moveIn.toISOString().slice(0, 10) : '',
+      to: moveOut ? moveOut.toISOString().slice(0, 10) : '',
+    });
+    setShowDatePicker(false);
+    setDatePickerSource(null);
+    // Save selected dates to localStorage
+    if (dates.moveIn && moveOut) {
+      localStorage.setItem('room_selectedDates', JSON.stringify({
+        moveIn: dates.moveIn.toISOString(),
+        moveOut: moveOut.toISOString()
+      }));
+      // Gọi API check availability với lịch mới, dùng await để đảm bảo tuần tự
+      await checkAllRoomsAvailability(
+        dates.moveIn.toISOString().slice(0, 10),
+        moveOut.toISOString().slice(0, 10)
+      );
+    }
+  };
+
+  // On mount, restore selected dates from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem('room_selectedDates');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        const restoredDates = {
+          moveIn: parsed.moveIn ? new Date(parsed.moveIn) : null,
+          moveOut: parsed.moveOut ? new Date(parsed.moveOut) : null
+        };
+        setSelectedDates(restoredDates);
+        setAvailabilityDates({
+          from: restoredDates.moveIn ? restoredDates.moveIn.toISOString().slice(0, 10) : '',
+          to: restoredDates.moveOut ? restoredDates.moveOut.toISOString().slice(0, 10) : '',
+        });
+      } catch {}
+    }
+  }, []);
+
   if (loading) return <div className="min-h-screen flex items-center justify-center text-lg">Đang tải dữ liệu...</div>;
   if (!pkg) return <div className="min-h-screen flex items-center justify-center text-lg text-red-500">Không tìm thấy gói basic này.</div>;
 
@@ -193,118 +299,178 @@ export default function BasicRoomPackageDetail({ id, router }: { id: string, rou
             </div>
           </div>
 
-          {/* Room Info (giả lập) */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-            <div className="flex items-center gap-2 text-slate-600">
-              <Bed className="h-5 w-5" />
-              <div>
-                <div className="font-semibold">1</div>
-                <div className="text-sm">Bedrooms</div>
-              </div>
-            </div>
-            <div className="flex items-center gap-2 text-slate-600">
-              <Bath className="h-5 w-5" />
-              <div>
-                <div className="font-semibold">1</div>
-                <div className="text-sm">Bathrooms</div>
-              </div>
-            </div>
-            <div className="flex items-center gap-2 text-slate-600">
-              <Users className="h-5 w-5" />
-              <div>
-                <div className="font-semibold">2</div>
-                <div className="text-sm">Residents</div>
-              </div>
-            </div>
-            <div className="flex items-center gap-2 text-slate-600">
-              <Wifi className="h-5 w-5" />
-              <div>
-                <div className="font-semibold">100 Mbps</div>
-                <div className="text-sm">Internet</div>
-              </div>
-            </div>
-          </div>
-
-          {/* Tabs bar */}
-          <div className="w-full">
-            <div className="rounded-full bg-slate-100 mb-6 flex justify-between items-center overflow-x-auto" style={{minHeight: 56}}>
-              {[
-                { key: "details", label: "Details" },
-                { key: "community", label: "Community" },
-                { key: "reviews", label: "Reviews" },
-                { key: "faq", label: "FAQ" },
-              ].map(tab => (
+          {/* Tabs bar - move outside card, horizontal nav with underline on active/hover */}
+          <div className="w-full border-b border-slate-200 mb-6">
+            <nav className="flex flex-row gap-6 px-2 overflow-x-auto">
+              {[{ key: "details", label: "Details" }, { key: "rooms", label: "Rooms" }, { key: "community", label: "Community" }, { key: "location", label: "Location" }, { key: "tour", label: "Tour" }, { key: "reviews", label: "Reviews" }, { key: "faq", label: "FAQ" }].map(tab => (
                 <button
                   key={tab.key}
-                  className={`flex-1 text-center px-0 py-2 font-semibold rounded-full transition-all duration-200 focus:outline-none ${activeTab === tab.key ? 'bg-white text-slate-800 shadow font-bold' : 'text-slate-600'}`}
-                  style={{ minWidth: 0 }}
+                  className={`relative py-3 px-1 text-base font-medium transition-colors duration-150 focus:outline-none
+                    ${activeTab === tab.key ? 'text-slate-900 font-semibold' : 'text-slate-500'}
+                    hover:text-slate-900`}
+                  style={{ background: 'none', border: 'none' }}
                   onClick={() => setActiveTab(tab.key)}
                 >
                   {tab.label}
+                  <span className={`absolute left-0 right-0 -bottom-1 h-0.5 rounded bg-orange-500 transition-all duration-200 ${activeTab === tab.key ? 'opacity-100' : 'opacity-0'} pointer-events-none`}></span>
                 </button>
               ))}
+            </nav>
+          </div>
+          {/* Card: summary, description, amenities */}
+          <div className="bg-white rounded-2xl shadow border border-slate-200 p-8 mb-10">
+            {/* Summary row */}
+            <div className="flex flex-col md:flex-row md:items-center md:gap-8 gap-4 mb-6">
+              <div className="flex items-center gap-2 text-slate-700 text-base"><Bed className="h-5 w-5 mr-1" /> 4 bedrooms</div>
+              <div className="flex items-center gap-2 text-slate-700 text-base"><Bath className="h-5 w-5 mr-1" /> 2 baths</div>
+              <div className="flex items-center gap-2 text-slate-700 text-base"><Users className="h-5 w-5 mr-1" /> 7 residents</div>
+              <div className="flex items-center gap-2 text-slate-700 text-base"><Calendar className="h-5 w-5 mr-1" /> 3 months min.</div>
             </div>
-            {/* Tab content */}
-            <div>
-              {activeTab === "details" && <DetailsTab pkg={pkg} amenities={amenities} />}
-              {activeTab === "community" && <CommunityTab />}
-              {activeTab === "reviews" && <ReviewsTab />}
-              {activeTab === "faq" && <FAQTab />}
-            </div>
+            <hr className="my-4" />
+            {/* Description and amenities (reuse DetailsTab) */}
+            {activeTab === "details" && <DetailsTab pkg={pkg} amenities={amenities} />}
+            {activeTab === "community" && <CommunityTab />}
+            {activeTab === "reviews" && <ReviewsTab />}
+            {activeTab === "faq" && <FAQTab />}
           </div>
 
+         
           {/* Danh sách phòng hiển thị dọc dưới Tabs */}
-          <div className="mt-10">
-            <h3 className="text-xl font-semibold text-slate-800 mb-4">Available Rooms</h3>
-            <div className="flex flex-col gap-8">
-              {rooms.length === 0 && <div className="text-slate-500">Không có phòng nào khả dụng cho gói này.</div>}
-              {rooms.map((room: any, idx: number) => {
-                const isSelected = selectedRoom && selectedRoom.id === room.id;
-                return (
-                  <Card key={room.id} className={`border rounded-2xl shadow bg-white/80 ${isSelected ? 'ring-2 ring-blue-500' : ''}`}>
-                    <CardContent className="p-6 flex flex-col md:flex-row gap-6 items-center">
-                      <div className="flex-1 w-full">
-                        <div className="font-bold text-lg text-slate-800 mb-2">{room.roomName || room.roomTypeName}</div>
-                        <div className="text-slate-600 mb-1">{room.descriptionDetails}</div>
-                        <div className="text-slate-500 text-sm mb-1">Tầng: {room.floor} | Mã phòng: {room.roomCode}</div>
-                        <div className="text-slate-500 text-sm mb-1">Loại: {room.roomTypeName}</div>
-                        <div className="text-slate-500 text-sm mb-1">Trạng thái: {room.status}</div>
-                      </div>
-                      <div className="flex flex-col gap-2 items-center">
-                        <div className="text-xl font-bold text-blue-700 mb-2">₫{pkg.price?.toLocaleString()}</div>
-                        <Button
-                          className="rounded-full px-6 py-2 bg-gradient-to-r from-blue-500 to-teal-500 text-white font-semibold shadow hover:shadow-lg transition"
-                          onClick={() => {
-                            if (isSelected && hoveredRoomId === room.id) {
-                              setSelectedRoom(null);
-                            } else {
-                              setSelectedRoom(room);
-                            }
-                          }}
-                          variant={isSelected ? 'default' : 'outline'}
-                          onMouseEnter={() => isSelected && setHoveredRoomId(room.id)}
-                          onMouseLeave={() => isSelected && setHoveredRoomId(null)}
-                        >
-                          {isSelected
-                            ? (hoveredRoomId === room.id ? 'Bỏ chọn' : 'Đã chọn')
-                            : 'Chọn phòng này'}
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
+          {/* Room options section as a card/box */}
+          <div className="max-w-7xl mx-auto mt-10">
+            <div className="bg-white/90 rounded-2xl shadow border border-slate-200 p-6 mb-8">
+              {/* Header row: title/desc left, button right */}
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-4">
+                <div>
+                  <h2 className="text-2xl font-bold mb-1">Room options</h2>
+                  <div className="text-slate-600">You'll be sharing this coliving with up to 6 other residents.</div>
+                </div>
+                <div className="mt-2 md:mt-0">
+                  {(!selectedDates.moveIn || !selectedDates.moveOut) ? (
+                    <Button
+                      className="rounded-full px-8 py-3 text-base font-semibold bg-black text-white hover:bg-slate-800"
+                      onClick={() => { setShowDatePicker(true); setDatePickerSource('left'); }}
+                    >
+                      Check availability
+                    </Button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="flex items-center justify-center rounded-full border border-slate-200 bg-white px-8 py-3 text-base font-semibold text-slate-700 shadow-sm min-w-[280px]"
+                      onClick={() => { setShowDatePicker(true); setDatePickerSource('left'); }}
+                    >
+                      {selectedDates.moveIn?.toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short' })} -&gt; {selectedDates.moveOut?.toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })}
+                    </button>
+                  )}
+                </div>
+              </div>
+              <hr className="my-4" />
+              {/* Private rooms section as a card/box */}
+              <div className="bg-slate-50 rounded-xl border border-slate-100 shadow-sm p-4">
+                {/* <h3 className="text-xl font-semibold mb-4">Private rooms</h3> */}
+                {/* Room list as a grid of cards */}
+                <div className="grid grid-cols-1 gap-6">
+                  {rooms.length === 0 && <div className="text-slate-500">Không có phòng nào khả dụng cho gói này.</div>}
+                  {rooms.map((room: any, idx: number) => {
+                    const isSelected = selectedRoom && selectedRoom.id === room.id;
+                    const availability = roomAvailability[room.id] || {};
+                    const status = availability.viewedBookingStatus || '';
+                    const isAvailable = status === 'available';
+                    const availableFrom = status.startsWith('available from') ? status : '';
+                    return (
+                      <Card key={room.id} className={`border rounded-2xl shadow bg-white/80 ${isSelected ? 'ring-2 ring-blue-500' : ''}`}>
+                        <CardContent className="p-6 flex flex-col md:flex-row gap-6 items-center">
+                          <div className="flex-1 w-full">
+                            <div className="font-bold text-lg text-slate-800 mb-2">{room.roomName || room.roomTypeName}</div>
+                            <div className="text-slate-600 mb-1">{room.descriptionDetails}</div>
+                            <div className="text-slate-500 text-sm mb-1">Tầng: {room.floor} | Mã phòng: {room.roomCode}</div>
+                            <div className="text-slate-500 text-sm mb-1">Loại: {room.roomTypeName}</div>
+                            <div className="text-slate-500 text-sm mb-1">Trạng thái: {room.status}</div>
+                            {/* Trạng thái phòng */}
+                            <div className="mt-2 text-sm">
+                              {isAvailable && <span className="text-green-600 font-semibold">Available</span>}
+                              {availableFrom && <span className="text-orange-600 font-semibold">{status}</span>}
+                              {!isAvailable && !availableFrom && status && <span className="text-gray-500">{status}</span>}
+                            </div>
+                          </div>
+                          <div className="flex flex-col gap-2 items-center">
+                            <div className="text-xl font-bold text-blue-700 mb-2">₫{pkg.price?.toLocaleString()}</div>
+                            <Button
+                              className="rounded-full px-6 py-2 bg-gradient-to-r from-blue-500 to-teal-500 text-white font-semibold shadow hover:shadow-lg transition"
+                              onClick={() => {
+                                if (isSelected && hoveredRoomId === room.id) {
+                                  setSelectedRoom(null);
+                                } else {
+                                  setSelectedRoom(room);
+                                }
+                              }}
+                              variant={isSelected ? 'default' : 'outline'}
+                              onMouseEnter={() => isSelected && setHoveredRoomId(room.id)}
+                              onMouseLeave={() => isSelected && setHoveredRoomId(null)}
+                              disabled={!isAvailable}
+                            >
+                              {isSelected
+                                ? (hoveredRoomId === room.id ? 'Bỏ chọn' : 'Đã chọn')
+                                : isAvailable ? 'Chọn phòng này' : 'Không thể chọn'}
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
           </div>
-        </div>
+        </div> {/* Close left column */}
 
         {/* Cột phải: Box booking */}
         <div className="lg:col-span-1">
           <Card className="sticky top-24 rounded-2xl border-0 shadow-lg">
             <CardContent className="p-6">
               {!selectedRoom ? (
-                <div className="text-center text-slate-500 py-12">Vui lòng chọn phòng để đặt.</div>
+                // UI khi chưa chọn phòng: hiển thị nút chọn lịch/check availability hoặc range ngày, và nút Select Room
+                <div>
+                  <div className="text-center mb-4">
+                    <div className="text-lg font-bold mb-2">Add dates for prices</div>
+                    <div className="bg-green-100 text-green-700 rounded-lg py-2 px-4 mb-4 font-semibold">Book now - Pay at the property</div>
+                  </div>
+                  <div className="flex flex-row gap-2 justify-center mb-4">
+                    {(!selectedDates.moveIn || !selectedDates.moveOut)
+                      ? (
+                        <Button
+                          className="px-6 py-2 rounded-md font-semibold text-base"
+                          variant="secondary"
+                          onClick={() => { setShowDatePicker(true); setDatePickerSource('right'); }}
+                        >
+                          Check availability
+                        </Button>
+                      )
+                      : (
+                        <button
+                          type="button"
+                          className="flex items-center gap-2 px-6 py-2 rounded-full border border-slate-300 bg-white shadow min-w-[280px]"
+                          onClick={() => { setShowDatePicker(true); setDatePickerSource('right'); }}
+                        >
+                          <CalendarIcon className="h-5 w-5 text-blue-600" />
+                          <span>{selectedDates.moveIn.toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short' })} -&gt; {selectedDates.moveOut.toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })}</span>
+                        </button>
+                      )
+                    }
+                    {/* Modal chọn ngày range cho box phải */}
+                    <DatePickerModal
+                      open={showDatePicker && datePickerSource === 'right'}
+                      onOpenChange={open => { setShowDatePicker(open); if (!open) setDatePickerSource(null); }}
+                      onDatesSelect={(dates) => {
+                        console.log('[DEBUG] DatePickerModal onDatesSelect:', dates);
+                        handleDateRangeSelect(dates);
+                      }}
+                    />
+                  </div>
+                  <Button className="w-full bg-black text-white font-bold py-3 text-lg rounded-full" disabled={!selectedDates.moveIn || !selectedDates.moveOut}>Select Room</Button>
+                </div>
               ) : (
+                // Đã chọn phòng và lịch, nút là Buy
                 <>
                   <div className="text-center mb-6">
                     <div className="text-2xl font-bold text-slate-800 mb-1">{selectedRoom.roomName || selectedRoom.roomTypeName}</div>
@@ -312,33 +478,15 @@ export default function BasicRoomPackageDetail({ id, router }: { id: string, rou
                     <div className="text-3xl font-bold text-blue-700">₫{pkg.price?.toLocaleString()}</div>
                     <div className="text-slate-600">per month</div>
                   </div>
-                  {/* Chọn ngày kiểu coliving.com */}
                   <div className="flex gap-2 mb-4 justify-center">
-                    {/* Move in */}
-                    <div
-                      className="flex items-center gap-2 px-4 py-2 border rounded-full bg-white shadow cursor-pointer min-w-[170px]"
-                      onClick={() => setShowDatePicker(true)}
-                    >
+                    <button type="button" className={`flex items-center gap-2 px-6 py-2 rounded-full border border-slate-300 bg-white shadow min-w-[140px]`} disabled>
                       <CalendarIcon className="h-4 w-4 text-blue-600" />
-                      <span className="font-medium">
-                        {selectedDates.moveIn
-                          ? selectedDates.moveIn.toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short' })
-                          : "Move in"}
-                      </span>
-                    </div>
-                    {/* Move out */}
-                    <div className="flex items-center gap-2 px-4 py-2 border rounded-full bg-white shadow text-gray-500 min-w-[170px]">
-                      <CalendarIcon className="h-4 w-4" />
-                      <span className="font-medium">
-                        {selectedDates.moveOut
-                          ? selectedDates.moveOut.toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })
-                          : "Move out"}
-                      </span>
-                    </div>
-                  </div>
-                  {/* Duration readonly */}
-                  <div className="w-full rounded-full justify-start px-4 py-2 border border-slate-200 bg-slate-50 text-slate-700 text-left mb-4">
-                    Duration: {duration ? `${duration.planDurationValue} ${duration.planDurationUnit}${Number(duration.planDurationValue) > 1 ? 's' : ''}` : 'N/A'}
+                      {selectedDates.moveIn ? selectedDates.moveIn.toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short' }) : 'Move in'}
+                    </button>
+                    <button type="button" className={`flex items-center gap-2 px-6 py-2 rounded-full border border-slate-300 bg-white shadow min-w-[140px]`} disabled>
+                      <CalendarIcon className="h-4 w-4 text-slate-400" />
+                      {selectedDates.moveOut ? selectedDates.moveOut.toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' }) : 'Move out'}
+                    </button>
                   </div>
                   <div className="mt-6 pt-6 border-t border-slate-200">
                     <div className="flex justify-between items-center text-sm text-slate-600 mb-2">
@@ -354,7 +502,7 @@ export default function BasicRoomPackageDetail({ id, router }: { id: string, rou
                       onClick={handlePayNow}
                       disabled={isPaying || !selectedRoom || !selectedDates.moveIn}
                     >
-                      {isPaying ? "Processing..." : "Book & Pay now"}
+                      {isPaying ? "Processing..." : "Buy"}
                     </button>
                   </div>
                 </>
@@ -366,11 +514,11 @@ export default function BasicRoomPackageDetail({ id, router }: { id: string, rou
             open={showDatePicker}
             onOpenChange={setShowDatePicker}
             onDatesSelect={(dates: { moveIn: Date | null; moveOut: Date | null }) => {
-              handleMoveInDateChange(dates.moveIn);
+              handleDateRangeSelect(dates);
             }}
           />
         </div>
-      </div>
+      </div> {/* Close grid */}
     </div>
   );
-} 
+}
