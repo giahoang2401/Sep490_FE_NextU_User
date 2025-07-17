@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import api from "@/utils/axiosConfig";
 import BasicRoomPackageDetail from "@/components/package/package-detail/BasicRoomPackageDetail";
+import BasicLifeActivityPackageDetail from "@/components/package/package-detail/BasicLifeActivityPackageDetail";
 
 export default function BasicPackageDetailPage() {
   const router = useRouter();
@@ -44,15 +45,10 @@ export default function BasicPackageDetailPage() {
     async function fetchData() {
       setLoading(true);
       try {
-        const [pkgRes, roomsRes] = await Promise.all([
-          api.get(`/api/membership/BasicPlans/${id}`),
-          api.get(`/api/membership/RoomInstances/by-basicPlan/${id}`),
-        ]);
+        const pkgRes = await api.get(`/api/membership/BasicPlans/${id}`);
         setPkg(pkgRes.data || pkgRes);
-        setRooms(roomsRes.data || roomsRes);
       } catch (err) {
         setPkg(null);
-        setRooms([]);
       } finally {
         setLoading(false);
       }
@@ -64,9 +60,14 @@ export default function BasicPackageDetailPage() {
   if (!pkg) return <div className="min-h-screen flex items-center justify-center text-lg text-red-500">Không tìm thấy gói basic này.</div>;
 
   // Phân biệt loại booking room dựa vào basicPlanType
-  if (pkg.basicPlanType === "Cors") {
+  if (pkg.basicPlanType === "Living") {
     return (
       <BasicRoomPackageDetail id={id} router={router} />
+    );
+  }
+  if (pkg.basicPlanType === "Life activities") {
+    return (
+      <BasicLifeActivityPackageDetail id={id} router={router} />
     );
   }
 

@@ -87,11 +87,18 @@ export default function BasicRoomPackageDetail({ id, router }: { id: string, rou
         const pkgRes = await api.get(`/api/membership/BasicPlans/${id}`);
         const pkgData = pkgRes.data || pkgRes;
         setPkg(pkgData);
-        // Lấy accomodationId từ pkg để fetch rooms
+        // Lấy accommodationId từ pkgData.acomodations[0].accomodationId (đúng key)
+        let accommodationId = undefined;
+        if (pkgData.acomodations && pkgData.acomodations.length > 0) {
+          accommodationId = pkgData.acomodations[0].accomodationId;
+        }
         let roomsData = [];
-        if (pkgData && pkgData.accomodationId) {
-          const roomsRes = await api.get(`/api/membership/RoomInstances/by-option/${pkgData.accomodationId}`);
+        if (accommodationId) {
+          console.log('[DEBUG] Call API get rooms with accommodationId:', accommodationId);
+          const roomsRes = await api.get(`/api/membership/RoomInstances/by-option/${accommodationId}`);
           roomsData = roomsRes.data || roomsRes;
+        } else {
+          console.log('[DEBUG] accommodationId not found, skip fetch rooms');
         }
         setRooms(roomsData);
         // Lấy duration mặc định từ gói

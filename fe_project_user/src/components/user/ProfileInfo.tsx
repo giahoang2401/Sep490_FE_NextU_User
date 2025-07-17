@@ -130,17 +130,20 @@ export default function ProfileInfo() {
               <div className="rounded-xl border px-3 py-2 w-full bg-gray-100">{formData.dob}</div>
             ) : name === "interests" || name === "personalityTraits" ? (
               <div className="flex flex-wrap gap-2">
-                {formData[name]
-                  .split(",")
-                  .filter((item: string) => item.trim() !== "")
-                  .map((item: string, idx: number) => (
-                    <span
-                      key={idx}
-                      className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs font-medium"
-                    >
-                      {item.trim()}
-                    </span>
-                ))}
+                {Array.isArray(formData[name])
+                  ? formData[name].filter((item: string) => item.trim() !== "").map((item: string, idx: number) => (
+                      <span key={idx} className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs font-medium">
+                        {item.trim()}
+                      </span>
+                    ))
+                  : (typeof formData[name] === "string" && formData[name])
+                    ? formData[name].split(",").filter((item: string) => item.trim() !== "").map((item: string, idx: number) => (
+                        <span key={idx} className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs font-medium">
+                          {item.trim()}
+                        </span>
+                      ))
+                    : null
+                }
               </div>
             ) : (
               <div className="rounded-xl border px-3 py-2 w-full bg-gray-100 break-all">{formData[name]}</div>

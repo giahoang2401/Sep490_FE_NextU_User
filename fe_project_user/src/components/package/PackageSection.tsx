@@ -456,76 +456,49 @@ export default function PackageSection({
                         </div>
                       </div>
                     )}
-                    
                     <CardHeader className="text-center pb-4 bg-gradient-to-br from-teal-50 to-blue-50">
                       <CardTitle className="text-2xl font-bold text-slate-800 mb-2">{pkg.name}</CardTitle>
                       <div className="flex items-center justify-center mb-4">
                         <span className="text-4xl font-bold text-slate-800">{pkg.totalPrice?.toLocaleString()}</span>
-                        <span className="text-2xl text-slate-600 ml-1">$</span>
+                        <span className="text-2xl text-slate-600 ml-1">₫</span>
                       </div>
                       <div className="text-slate-600 font-medium">Combo package</div>
                       <p className="text-slate-600 mt-3 text-sm leading-relaxed">{pkg.description}</p>
                     </CardHeader>
-                    
                     <CardContent className="space-y-6 p-6">
-                      {/* Package Details */}
+                      {/* Combo Details */}
                       <div className="bg-gradient-to-r from-teal-50 to-blue-50 rounded-2xl p-4">
                         <h4 className="font-bold text-slate-800 mb-3 flex items-center">
                           <Award className="h-4 w-4 mr-2 text-teal-600" />
-                          Package Details
+                          Combo Details
                         </h4>
                         <div className="space-y-2 text-sm">
-                          <div className="flex justify-between">
-                            <span className="text-slate-600">Code:</span>
-                            <span className="font-semibold text-slate-800">{pkg.code}</span>
-                          </div>
                           <div className="flex justify-between">
                             <span className="text-slate-600">Discount:</span>
                             <span className="font-bold text-teal-600 bg-teal-100 px-2 py-1 rounded-full">
                               {pkg.discountRate * 100}%
                             </span>
                           </div>
+                          <div className="flex justify-between">
+                            <span className="text-slate-600">Location:</span>
+                            <span className="font-semibold text-slate-800">{pkg.locationName}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-slate-600">Level:</span>
+                            <span className="font-semibold text-slate-800">{pkg.packageLevelName}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-slate-600">Basic Packages:</span>
+                            <span className="font-semibold text-slate-800">{Array.isArray(pkg.basicPlanIds) ? pkg.basicPlanIds.length : 0}</span>
+                          </div>
                         </div>
                       </div>
-
-                      {/* Services */}
-                      <div>
-                        <h4 className="font-bold text-slate-800 mb-3 flex items-center">
-                          <Sparkles className="h-4 w-4 mr-2 text-teal-600" />
-                          Included Services
-                        </h4>
-                        {loadingNext[pkg.id] ? (
-                          <div className="flex items-center justify-center py-4">
-                            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-teal-600 mr-2"></div>
-                            <span className="text-slate-500 text-sm">Loading services...</span>
-                          </div>
-                        ) : (
-                          <div className="space-y-2">
-                             <div className="flex items-center text-sm">
-                              <Check className="h-4 w-4 text-teal-500 mr-2 flex-shrink-0" />
-                              <span className="text-slate-700 font-bold">{ basicPlans.find(b => b.id === pkg.basicPlanId)?.name || '...' }</span>
-                            </div>
-                            {(nextServiceNames[pkg.id] || []).length === 0 ? (
-                              <div className="text-slate-500 text-sm italic pl-6">No additional services</div>
-                            ) : (
-                              nextServiceNames[pkg.id].map((name, i) => (
-                                <div key={i} className="flex items-center text-sm">
-                                  <Check className="h-4 w-4 text-teal-500 mr-2 flex-shrink-0" />
-                                  <span className="text-slate-700">{name}</span>
-                                </div>
-                              ))
-                            )}
-                          </div>
-                        )}
-                      </div>
-
                       {/* CTA Button */}
                       <Button
                         className="w-full rounded-2xl bg-gradient-to-r from-teal-600 to-blue-600 hover:from-teal-700 hover:to-blue-700 text-white font-semibold py-4 shadow-lg hover:shadow-xl transition-all duration-300"
-                        onClick={() => handleRequestPackage(pkg.id, pkg.id, 'combo')}
-                        disabled={!pkg.basicPlanId || requestingPackageId === pkg.id}
+                        onClick={() => router.push(`/packages/combo/${pkg.id}`)}
                       >
-                        {requestingPackageId === pkg.id ? 'Requesting...' : 'Detail'}
+                        Detail combo
                       </Button>
                     </CardContent>
                   </Card>

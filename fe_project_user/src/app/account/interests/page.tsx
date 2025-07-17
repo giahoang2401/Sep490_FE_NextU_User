@@ -1,52 +1,76 @@
 "use client";
 import { useAccount } from "@/components/account/AccountContext";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import api from "@/utils/axiosConfig";
-
-const ALL_INTERESTS = [
-  "Adventure travel", "Alternative energy", "Alternative medicine", "Animal welfare", "Astronomy", "Athletics", "Backpacking", "Badminton", "Baseball", "Basketball", "Beer tasting", "Bicycling", "Board games", "Bowling", "Brunch", "Camping", "Clubbing", "Comedy", "Conservation", "Cooking", "Crafts", "DIY – Do it Yourself", "Dancing", "Dining out", "Diving", "Drinking", "Education technology", "Entrepreneurship", "Environmental awareness", "Fencing", "Film", "Finance technology", "Fishing", "Fitness", "Frisbee", "Gaming", "Golf", "Happy hour", "Healing", "Hiking", "History", "Holistic health", "Horse riding", "Human rights", "Hunting", "Ice skating", "Innovation", "International travel", "Internet startups", "Investing", "Karaoke", "Kayaking", "Languages", "Literature", "Local culture", "Marketing", "Martial arts", "Meditation", "Mountain biking", "Music", "Natural parks", "Networking", "Neuroscience", "Nightlife", "Nutrition", "Outdoor adventure", "Outdoor sports", "Painting", "Photography", "Ping pong", "Polo", "Programming", "Public speaking", "Reading", "Religion", "Renewable energy", "Robotics", "Rock climbing", "Rugby", "Running", "Sailing", "Self-exploration", "Shooting & Archery", "Sightseeing", "Skiing", "Skydiving", "Snorkeling", "Snowboarding", "Soccer", "Social entrepreneurship", "Social movements", "Software development", "Spiritual growth", "Spirituality", "Squash", "Startups", "Stress relief", "Surfing", "Sustainability", "Swimming", "Tennis", "Theatre", "Travel", "Travel photography", "Venture capital", "Volleyball", "Volunteering", "Walking", "Web design", "Web development", "Wellness", "Wine tasting", "Writing", "Yoga"
-];
 
 export default function InterestsPage() {
   const data = useAccount();
-  const [selected, setSelected] = useState<string[]>(
-    data.interests ? data.interests.split(",").map((s: string) => s.trim()).filter(Boolean) : []
-  );
+  const [allInterests, setAllInterests] = useState<{id: string, name: string}[]>([]);
+  const [selected, setSelected] = useState<string[]>([]); // store selected ids
   const [search, setSearch] = useState("");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
 
+  useEffect(() => {
+    async function fetchInterests() {
+      try {
+        const res = await api.get("/api/user/interests");
+        if (Array.isArray(res.data)) {
+          setAllInterests(res.data.map((item: any) => ({ id: item.id, name: item.name })));
+        }
+      } catch (err) {
+        setAllInterests([]);
+      }
+    }
+    fetchInterests();
+  }, []);
+
+  useEffect(() => {
+    // Convert data.interests to array of ids for selected state
+    let initialSelected: string[] = [];
+    if (Array.isArray(data.interests)) {
+      // If backend returns array of names, map to ids
+      initialSelected = allInterests.filter(i => data.interests.includes(i.name)).map(i => i.id);
+    } else if (typeof data.interests === "string" && data.interests) {
+      const names = data.interests.split(",").map((s: string) => s.trim()).filter(Boolean);
+      initialSelected = allInterests.filter(i => names.includes(i.name)).map(i => i.id);
+    }
+    setSelected(initialSelected);
+  }, [data.interests, allInterests]);
+
   const filtered = useMemo(
     () =>
-      ALL_INTERESTS.filter(
-        (tag) => tag.toLowerCase().includes(search.toLowerCase())
+      allInterests.filter(
+        (tag) => tag.name.toLowerCase().includes(search.toLowerCase())
       ),
-    [search]
+    [search, allInterests]
   );
 
-  const toggleTag = (tag: string) => {
+  const toggleTag = (id: string) => {
     setSelected((prev) =>
-      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
+      prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id]
     );
   };
 
   const handleSave = async () => {
     setSaving(true);
     try {
-      await api.put("/api/user/profiles/updateprofile", {
-        fullName: data.fullName || "",
-        phone: data.phone || "",
-        gender: data.gender || "",
-        dob: data.dob || "",
-        avatarUrl: data.avatarUrl || "",
-        socialLinks: data.socialLinks || "",
-        address: data.address || "",
-        skills: data.skills || "",
-        personalityTraits: data.personalityTraits || "",
-        introduction: data.introduction || "",
-        cvUrl: data.cvUrl || "",
-        note: data.note || "",
-        interests: selected.join(", ")
+      await api.patch("/api/user/profiles/updateprofile", {
+        dto: {
+          fullName: data.fullName || "",
+          phone: data.phone || "",
+          gender: data.gender || "",
+          dob: data.dob || "",
+          avatarUrl: data.avatarUrl || "",
+          socialLinks: data.socialLinks || "",
+          address: data.address || "",
+          skills: data.skills || "",
+          personalityTraits: data.personalityTraits || "",
+          introduction: data.introduction || "",
+          cvUrl: data.cvUrl || "",
+          note: data.note || "",
+          interestIds: selected // send array of ids, DO NOT send interests
+        }
       });
       setMessage("Saved successfully!");
       setTimeout(() => setMessage(""), 2000);
@@ -71,16 +95,16 @@ export default function InterestsPage() {
         <div className="flex flex-wrap gap-2 mb-6">
           {filtered.map((tag) => (
             <button
-              key={tag}
+              key={tag.id}
               type="button"
-              onClick={() => toggleTag(tag)}
+              onClick={() => toggleTag(tag.id)}
               className={`px-3 py-1 rounded border text-sm transition-all ${
-                selected.includes(tag)
+                selected.includes(tag.id)
                   ? "bg-red-200 border-red-400 text-red-700 font-semibold"
                   : "bg-white border-red-200 text-gray-700 hover:bg-red-50"
               }`}
             >
-              {tag}
+              {tag.name}
             </button>
           ))}
         </div>

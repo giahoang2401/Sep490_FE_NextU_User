@@ -16,19 +16,21 @@ export default function AboutMePage() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      await api.put("/api/user/profiles/updateprofile", {
-        fullName,
-        phone,
-        gender,
-        dob,
-        avatarUrl: data.avatarUrl || "",
-        socialLinks: data.socialLinks || "",
-        address,
-        interests: data.interests || "",
-        personalityTraits: data.personalityTraits || "",
-        introduction: data.introduction || "",
-        cvUrl: data.cvUrl || "",
-        note: data.note || "",
+      await api.patch("/api/user/profiles/updateprofile", {
+        dto: {
+          fullName,
+          phone,
+          gender,
+          dob,
+          avatarUrl: data.avatarUrl || "",
+          socialLinks: data.socialLinks || "",
+          address,
+          interests: data.interests || "",
+          personalityTraits: data.personalityTraits || "",
+          introduction: data.introduction || "",
+          cvUrl: data.cvUrl || "",
+          note: data.note || "",
+        }
       });
       setMessage("Saved successfully!");
       setTimeout(() => setMessage(""), 2000);

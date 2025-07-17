@@ -1,52 +1,75 @@
 "use client";
 import { useAccount } from "@/components/account/AccountContext";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import api from "@/utils/axiosConfig";
-
-const ALL_SKILLS = [
-  "A/B testing", "AI", "API development", "Accounting", "Administrative support", "Advertising", "Affiliate marketing", "Android development", "Animators", "Audio production", "Back-end development", "Blogging", "Bookkeeping", "Brand strategy", "Branding", "Business development", "CRM management", "Communication", "Community management", "Content", "Content marketing", "Copyediting", "Copywriting", "Creative writing", "Crowd-funding", "Customer research", "Customer service", "Data analysis", "Data entry", "Data mining", "Data visualization", "Database administration", "Design", "Digital marketing", "Digital photography", "Direct marketing", "Display advertising", "E-books", "E-commerce", "Editing", "Education technology", "Email marketing", "Entrepreneurship", "Event management", "Events", "Excel", "Financial planning", "Front-end development", "Fundraising", "Game development", "Google Ads", "Google Analytics", "Grant writing", "Graphic design", "Growth hacking", "Hacking", "Human resources", "Illustration", "InDesign", "Internet marketing", "Internet startups", "Investing", "Journalist", "Lead generation", "Leadership", "Lean startups", "Management consulting", "Market research", "Marketing", "Media relations", "Mobile advertisement", "Mobile design", "Mobile development", "Negotiation", "Networking", "Newsletters", "Paralegal services"
-];
 
 export default function ProfessionSkillsPage() {
   const data = useAccount();
-  const [selected, setSelected] = useState<string[]>(
-    data.personalityTraits ? data.personalityTraits.split(",").map((s: string) => s.trim()).filter(Boolean) : []
-  );
+  const [allSkills, setAllSkills] = useState<{id: string, name: string}[]>([]);
+  const [selected, setSelected] = useState<string[]>([]); // store selected ids
   const [search, setSearch] = useState("");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
 
+  useEffect(() => {
+    async function fetchSkills() {
+      try {
+        const res = await api.get("/api/user/interests/personality");
+        if (Array.isArray(res.data)) {
+          setAllSkills(res.data.map((item: any) => ({ id: item.id, name: item.name })));
+        }
+      } catch (err) {
+        setAllSkills([]);
+      }
+    }
+    fetchSkills();
+  }, []);
+
+  useEffect(() => {
+    // Convert data.personalityTraits to array of ids for selected state
+    let initialSelected: string[] = [];
+    if (Array.isArray(data.personalityTraits)) {
+      initialSelected = allSkills.filter(i => data.personalityTraits.includes(i.name)).map(i => i.id);
+    } else if (typeof data.personalityTraits === "string" && data.personalityTraits) {
+      const names = data.personalityTraits.split(",").map((s: string) => s.trim()).filter(Boolean);
+      initialSelected = allSkills.filter(i => names.includes(i.name)).map(i => i.id);
+    }
+    setSelected(initialSelected);
+  }, [data.personalityTraits, allSkills]);
+
   const filtered = useMemo(
     () =>
-      ALL_SKILLS.filter(
-        (tag) => tag.toLowerCase().includes(search.toLowerCase())
+      allSkills.filter(
+        (tag) => tag.name.toLowerCase().includes(search.toLowerCase())
       ),
-    [search]
+    [search, allSkills]
   );
 
-  const toggleTag = (tag: string) => {
+  const toggleTag = (id: string) => {
     setSelected((prev) =>
-      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
+      prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id]
     );
   };
 
   const handleSave = async () => {
     setSaving(true);
     try {
-      await api.put("/api/user/profiles/updateprofile", {
-        fullName: data.fullName || "",
-        phone: data.phone || "",
-        gender: data.gender || "",
-        dob: data.dob || "",
-        avatarUrl: data.avatarUrl || "",
-        socialLinks: data.socialLinks || "",
-        address: data.address || "",
-        interests: data.interests || "",
-        skills: data.skills || "",
-        personalityTraits: selected.join(", "),
-        introduction: data.introduction || "",
-        cvUrl: data.cvUrl || "",
-        note: data.note || "",
+      await api.patch("/api/user/profiles/updateprofile", {
+        dto: {
+          fullName: data.fullName || "",
+          phone: data.phone || "",
+          gender: data.gender || "",
+          dob: data.dob || "",
+          avatarUrl: data.avatarUrl || "",
+          socialLinks: data.socialLinks || "",
+          address: data.address || "",
+          interests: data.interests || "",
+          skills: data.skills || "",
+          personalityTraitIds: selected, // send array of ids, DO NOT send personalityTraits
+          introduction: data.introduction || "",
+          cvUrl: data.cvUrl || "",
+          note: data.note || "",
+        }
       });
       setMessage("Saved successfully!");
       setTimeout(() => setMessage(""), 2000);
@@ -71,16 +94,16 @@ export default function ProfessionSkillsPage() {
         <div className="flex flex-wrap gap-2 mb-6">
           {filtered.map((tag) => (
             <button
-              key={tag}
+              key={tag.id}
               type="button"
-              onClick={() => toggleTag(tag)}
+              onClick={() => toggleTag(tag.id)}
               className={`px-3 py-1 rounded border text-sm transition-all ${
-                selected.includes(tag)
+                selected.includes(tag.id)
                   ? "bg-red-200 border-red-400 text-red-700 font-semibold"
                   : "bg-white border-red-200 text-gray-700 hover:bg-red-50"
               }`}
             >
-              {tag}
+              {tag.name}
             </button>
           ))}
         </div>

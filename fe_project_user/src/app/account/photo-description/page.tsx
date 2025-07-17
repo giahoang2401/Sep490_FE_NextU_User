@@ -32,19 +32,21 @@ export default function PhotoDescriptionPage() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      await api.put("/api/user/profiles/updateprofile", {
-        fullName: data.fullName || "",
-        phone: data.phone || "",
-        gender: data.gender || "",
-        dob: data.dob || "",
-        avatarUrl: avatarFile ? avatarPreview : avatarUrl,
-        socialLinks,
-        address: data.address || "",
-        interests: data.interests || "",
-        personalityTraits: data.personalityTraits || "",
-        introduction,
-        cvUrl,
-        note,
+      await api.patch("/api/user/profiles/updateprofile", {
+        dto: {
+          fullName: data.fullName || "",
+          phone: data.phone || "",
+          gender: data.gender || "",
+          dob: data.dob || "",
+          avatarUrl: avatarFile ? avatarPreview : avatarUrl,
+          socialLinks,
+          address: data.address || "",
+          interests: data.interests || "",
+          personalityTraits: data.personalityTraits || "",
+          introduction,
+          cvUrl,
+          note,
+        }
       });
       setMessage("Saved successfully!");
       setTimeout(() => setMessage(""), 2000);

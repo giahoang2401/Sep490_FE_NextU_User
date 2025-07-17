@@ -20,7 +20,7 @@ export default function PasswordPage() {
     }
     setSaving(true);
     try {
-      await api.put("/api/user/profiles/updatepassword", { currentPassword: current, newPassword: newPass });
+      await api.patch("/api/user/profiles/updatepassword", { currentPassword: current, newPassword: newPass });
       setMessage("Password changed successfully!");
       setTimeout(() => setMessage(""), 2000);
       setCurrent(""); setNewPass(""); setConfirm("");
