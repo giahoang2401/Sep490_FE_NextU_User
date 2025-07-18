@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { AccountContext } from "@/components/account/AccountContext";
+import { AccountProvider, useAccount } from "@/components/account/AccountContext";
 import { useEffect, useState } from "react";
 import api from "@/utils/axiosConfig";
 
@@ -36,8 +36,36 @@ export default function AccountLayout({ children }: { children: React.ReactNode 
 
   const currentPage = getCurrentPageName(pathname);
 
+  // Move profile score UI to a child component that uses useAccount
+  function ProfileScoreBar() {
+    const data = useAccount();
+    const profileFields = [
+      !!data.fullName,
+      !!data.dob,
+      !!data.gender,
+      !!data.phone,
+      !!data.address,
+      !!data.avatarUrl,
+      typeof data.introduction === 'string' && data.introduction.length >= 50,
+      (Array.isArray(data.interests) && data.interests.length > 0) || (typeof data.interests === 'string' && data.interests.trim() !== ''),
+      (Array.isArray(data.personalityTraits) && data.personalityTraits.length > 0) || (typeof data.personalityTraits === 'string' && data.personalityTraits.trim() !== ''),
+      !!data.cvUrl,
+      !!data.socialLinks,
+    ];
+    const filledCount = profileFields.filter(Boolean).length;
+    const profileScore = Math.round((filledCount / profileFields.length) * 100);
+    return (
+      <div className="flex items-center gap-2">
+        <span className="text-gray-600 font-medium">Profile score:</span>
+        <span className="font-bold text-lg">{profileScore}</span>
+        <span className="text-gray-600">/ 100%</span>
+        <Link href="/account/my-profile" className="px-3 py-1 border rounded text-sm hover:bg-gray-100">View profile</Link>
+      </div>
+    );
+  }
+
   return (
-    <AccountContext.Provider value={accountData}>
+    <AccountProvider initialData={accountData}>
       {/* Navbar phụ: breadcrumb + view profile */}
       <div className="w-full border-b bg-white px-12 py-4 flex items-center justify-between sticky top-0 z-10">
         <nav className="text-sm text-gray-500" aria-label="Breadcrumb">
@@ -53,12 +81,7 @@ export default function AccountLayout({ children }: { children: React.ReactNode 
             <li className="flex items-center font-semibold text-black">{currentPage}</li>
           </ol>
         </nav>
-        <div className="flex items-center gap-2">
-          <span className="text-gray-600 font-medium">Profile score:</span>
-          <span className="font-bold text-lg">{accountData.profileScore ?? 53}</span>
-          <span className="text-gray-600">/ 100%</span>
-          <Link href="/account/my-profile" className="px-3 py-1 border rounded text-sm hover:bg-gray-100">View profile</Link>
-        </div>
+        <ProfileScoreBar />
       </div>
       {/* Main content: sidebar + page content */}
       <div className="flex min-h-[calc(100vh-64px)] bg-gray-50">
@@ -87,6 +110,6 @@ export default function AccountLayout({ children }: { children: React.ReactNode 
           <div className="flex-1 max-w-none">{children}</div>
         </main>
       </div>
-    </AccountContext.Provider>
+    </AccountProvider>
   );
 } 

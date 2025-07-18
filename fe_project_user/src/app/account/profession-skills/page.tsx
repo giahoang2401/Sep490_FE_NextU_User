@@ -2,6 +2,9 @@
 import { useAccount } from "@/components/account/AccountContext";
 import { useState, useMemo, useEffect } from "react";
 import api from "@/utils/axiosConfig";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { CheckCircle2 } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 const fetchProfile = async () => {
   const res = await api.get("/api/user/profiles/profileme");
@@ -16,6 +19,8 @@ export default function ProfessionSkillsPage() {
   const [search, setSearch] = useState("");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
+  const [showSuccess, setShowSuccess] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     async function fetchSkills() {
@@ -76,8 +81,11 @@ export default function ProfessionSkillsPage() {
         note: data.note || "",
       });
       if (setAccount) setAccount(res.data.data);
-      setMessage("Saved successfully!");
-      setTimeout(() => setMessage(""), 2000);
+      setShowSuccess(true);
+      setTimeout(() => {
+        setShowSuccess(false);
+        router.push("/account/my-profile");
+      }, 2000);
     } catch {
       setMessage("Error saving. Please try again.");
     }
@@ -117,8 +125,17 @@ export default function ProfessionSkillsPage() {
           onClick={handleSave}
           disabled={saving}
         >
-          {saving ? "Saving..." : "Save"}
+          {saving ? "Saving..." : "Complete"}
         </button>
+        <Dialog open={showSuccess}>
+          <DialogContent className="bg-green-50 text-center">
+            <div className="flex flex-col items-center justify-center py-2">
+              <CheckCircle2 className="text-green-600 mb-2" size={48} />
+              <DialogTitle className="text-green-700 text-2xl font-bold">Profile updated!</DialogTitle>
+              <DialogDescription className="text-green-700 mt-2">Your information has been saved successfully.</DialogDescription>
+            </div>
+          </DialogContent>
+        </Dialog>
         {message && <div className="mt-2 text-sm text-blue-600">{message}</div>}
       </div>
     </div>

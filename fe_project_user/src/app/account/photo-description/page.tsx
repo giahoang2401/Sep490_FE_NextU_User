@@ -2,6 +2,9 @@
 import { useAccount } from "@/components/account/AccountContext";
 import { useState, useRef } from "react";
 import api from "@/utils/axiosConfig";
+import { useRouter } from "next/navigation";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { CheckCircle2 } from "lucide-react";
 
 const fetchProfile = async () => {
   const res = await api.get("/api/user/profiles/profileme");
@@ -21,6 +24,8 @@ export default function PhotoDescriptionPage() {
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string>(data.avatarUrl || "");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const router = useRouter();
+  const [showSuccess, setShowSuccess] = useState(false);
 
   const handleAvatarFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -53,8 +58,11 @@ export default function PhotoDescriptionPage() {
         note,
       });
       if (setAccount) setAccount(res.data.data);
-      setMessage("Saved successfully!");
-      setTimeout(() => setMessage(""), 2000);
+      setShowSuccess(true);
+      setTimeout(() => {
+        setShowSuccess(false);
+        router.push("/account/interests");
+      }, 2000);
     } catch {
       setMessage("Error saving. Please try again.");
     }
@@ -146,12 +154,21 @@ export default function PhotoDescriptionPage() {
               onClick={handleSave}
               disabled={saving || introduction.length < 50}
             >
-              {saving ? "Saving..." : "Save"}
+              {saving ? "Saving..." : "Continue"}
             </button>
           </div>
           {message && <div className="mt-2 text-sm text-blue-600">{message}</div>}
         </div>
       </div>
+      <Dialog open={showSuccess}>
+        <DialogContent className="bg-green-50 text-center">
+          <div className="flex flex-col items-center justify-center py-2">
+            <CheckCircle2 className="text-green-600 mb-2" size={48} />
+            <DialogTitle className="text-green-700 text-2xl font-bold">Profile updated!</DialogTitle>
+            <DialogDescription className="text-green-700 mt-2">Your information has been saved successfully.</DialogDescription>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 } 

@@ -2,6 +2,9 @@
 import React, { useState } from "react";
 import { useAccount } from "@/components/account/AccountContext";
 import api from "@/utils/axiosConfig";
+import { useRouter } from "next/navigation";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { CheckCircle2 } from "lucide-react";
 
 const fetchProfile = async () => {
   const res = await api.get("/api/user/profiles/profileme");
@@ -18,6 +21,8 @@ export default function AboutMePage() {
   const [address, setAddress] = useState(data.address || "");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
+  const [showSuccess, setShowSuccess] = useState(false);
+  const router = useRouter();
 
   const handleSave = async () => {
     setSaving(true);
@@ -37,8 +42,11 @@ export default function AboutMePage() {
         note: data.note || "",
       });
       if (setAccount) setAccount(res.data.data);
-      setMessage("Saved successfully!");
-      setTimeout(() => setMessage(""), 2000);
+      setShowSuccess(true);
+      setTimeout(() => {
+        setShowSuccess(false);
+        router.push("/account/photo-description");
+      }, 2000);
     } catch {
       setMessage("Error saving. Please try again.");
     }
@@ -107,10 +115,18 @@ export default function AboutMePage() {
             className="px-8 py-2 bg-black text-white rounded-xl text-base font-semibold disabled:opacity-50"
             disabled={saving}
           >
-            {saving ? "Saving..." : "Save"}
+            {saving ? "Saving..." : "Continue"}
           </button>
         </div>
-        {message && <div className="mt-2 text-sm text-blue-600 text-right">{message}</div>}
+        <Dialog open={showSuccess}>
+          <DialogContent className="bg-green-50 text-center">
+            <div className="flex flex-col items-center justify-center py-2">
+              <CheckCircle2 className="text-green-600 mb-2" size={48} />
+              <DialogTitle className="text-green-700 text-2xl font-bold">Profile updated!</DialogTitle>
+              <DialogDescription className="text-green-700 mt-2">Your information has been saved successfully.</DialogDescription>
+            </div>
+          </DialogContent>
+        </Dialog>
       </form>
     </div>
   );
