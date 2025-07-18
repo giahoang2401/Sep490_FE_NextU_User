@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import api from "@/utils/axiosConfig";
+import { useMemo } from "react";
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -14,6 +15,7 @@ interface PackageSectionProps {
   showTypeFilter?: boolean;
   maxPackages?: number;
   className?: string;
+  isPreview?: boolean; // Add isPreview prop
 }
 
 export default function PackageSection({ 
@@ -21,7 +23,8 @@ export default function PackageSection({
   showLocationFilter = true, 
   showTypeFilter = true,
   maxPackages,
-  className = ""
+  className = "",
+  isPreview = true // Default to true
 }: PackageSectionProps) {
   const [selectedLocation, setSelectedLocation] = useState<string>("Hà Nội");
   const [comboPlans, setComboPlans] = useState<any[]>([]);
@@ -32,6 +35,9 @@ export default function PackageSection({
   const [loadingNext, setLoadingNext] = useState<{ [pkgId: string]: boolean }>({});
   const [requestingPackageId, setRequestingPackageId] = useState<string | null>(null);
   const router = useRouter();
+  const [accommodationInfo, setAccommodationInfo] = useState<{ [accommodationId: string]: any }>({});
+  const [loadingAccommodation, setLoadingAccommodation] = useState<{ [accommodationId: string]: boolean }>({});
+  const [expandedAccommodations, setExpandedAccommodations] = useState<{ [key: string]: boolean }>({});
 
   const locations = ["Hà Nội", "Hải Phòng"];
 
@@ -150,6 +156,55 @@ export default function PackageSection({
     }
   }
 
+  // Fetch accommodation info for basic packages
+  async function fetchAccommodationInfo(accommodationId: string) {
+    if (!accommodationId) return;
+    setLoadingAccommodation((prev) => ({ ...prev, [accommodationId]: true }));
+    try {
+      const res = await api.get(`/api/membership/AccommodationOptions/${accommodationId}`);
+      setAccommodationInfo((prev) => ({ ...prev, [accommodationId]: res.data || res }));
+    } catch (err) {
+      setAccommodationInfo((prev) => ({ ...prev, [accommodationId]: null }));
+    } finally {
+      setLoadingAccommodation((prev) => ({ ...prev, [accommodationId]: false }));
+    }
+  }
+
+  // Limit packages if maxPackages is specified, or if isPreview is true, limit to 3
+  const limitedCombos = isPreview ? filteredCombos.slice(0, 3) : (maxPackages ? filteredCombos.slice(0, maxPackages) : filteredCombos);
+  const limitedBasic = isPreview ? filteredBasic.slice(0, 3) : (maxPackages ? filteredBasic.slice(0, maxPackages) : filteredBasic);
+
+  // Auto-fetch accommodation info for all basic packages
+  useEffect(() => {
+    console.log("limitedBasic", limitedBasic);
+    limitedBasic.forEach(pkg => {
+      console.log("pkg.acomodations", pkg.acomodations);
+      if (pkg.acomodations && Array.isArray(pkg.acomodations)) {
+        pkg.acomodations.forEach((a: any) => {
+          const accommodationId = a.accomodationId;
+          console.log("accommodationId to fetch:", accommodationId, "already in state?", !!accommodationInfo[accommodationId]);
+          if (accommodationId && !accommodationInfo[accommodationId]) {
+            fetchAccommodationInfo(accommodationId);
+          }
+        });
+      }
+      // Auto-fetch entitlement detail for LIFEACTIVITIES
+      if (pkg.basicPlanTypeCode === 'LIFEACTIVITIES' && pkg.entitlements && Array.isArray(pkg.entitlements)) {
+        pkg.entitlements.forEach((e: any) => {
+          const entitlementId = e.entitlementId;
+          if (entitlementId && !accommodationInfo[entitlementId] && !loadingAccommodation[entitlementId]) {
+            setLoadingAccommodation(prev => ({ ...prev, [entitlementId]: true }));
+            api.get(`/api/membership/EntitlementRule/${entitlementId}`)
+              .then(res => setAccommodationInfo(prev => ({ ...prev, [entitlementId]: res.data || res })))
+              .catch(() => setAccommodationInfo(prev => ({ ...prev, [entitlementId]: null })))
+              .finally(() => setLoadingAccommodation(prev => ({ ...prev, [entitlementId]: false })));
+          }
+        });
+      }
+    });
+    // eslint-disable-next-line
+  }, [limitedBasic]);
+
   if (loading) {
     return (
       <div className={`min-h-screen bg-gradient-to-br from-[#e8f9fc] via-[#f0fbfd] to-[#cce9fa] ${className}`}>
@@ -162,10 +217,6 @@ export default function PackageSection({
       </div>
     );
   }
-
-  // Limit packages if maxPackages is specified
-  const limitedCombos = maxPackages ? filteredCombos.slice(0, maxPackages) : filteredCombos;
-  const limitedBasic = maxPackages ? filteredBasic.slice(0, maxPackages) : filteredBasic;
 
   return (
     <div className={`min-h-screen bg-gradient-to-br from-[#e8f9fc] via-[#f0fbfd] to-[#cce9fa] ${className}`}>
@@ -334,7 +385,7 @@ export default function PackageSection({
           {selectedLocation === "Hà Nội" && (
           <>
             {showType === 'basic' && (
-              <div className="flex flex-wrap justify-center gap-8">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-8 justify-center">
                 {limitedBasic.length === 0 && (
                   <div className="w-full text-center py-12">
                     <div className="text-slate-500 text-lg">No basic packages available for {selectedLocation}.</div>
@@ -362,6 +413,12 @@ export default function PackageSection({
                       </div>
                       <div className="text-slate-600 font-medium">Basic package</div>
                       <p className="text-slate-600 mt-3 text-sm leading-relaxed">{pkg.description}</p>
+                      {/* Thông tin bổ sung */}
+                      <div className="mt-2 text-xs text-slate-500 space-y-1 text-left">
+                        {pkg.locationName && <div><span className="font-semibold">Location:</span> {pkg.locationName}</div>}
+                        {pkg.basicPlanTypeCode && <div><span className="font-semibold">Type:</span> {pkg.basicPlanTypeCode}</div>}
+                       
+                      </div>
                     </CardHeader>
                     
                     <CardContent className="space-y-6 p-6">
@@ -401,24 +458,119 @@ export default function PackageSection({
                           <Zap className="h-4 w-4 mr-2 text-blue-600" />
                           Included Services
                         </h4>
-                        {loadingNext[pkg.id] ? (
-                          <div className="flex items-center justify-center py-4">
-                            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600 mr-2"></div>
-                            <span className="text-slate-500 text-sm">Loading services...</span>
+                        {pkg.acomodations && pkg.acomodations.length > 0 ? (
+                          <div className="space-y-2">
+                            {pkg.acomodations.map((a: any, i: number) => {
+                              const accommodationId = a.accomodationId;
+                              const info = accommodationInfo[accommodationId];
+                              const loading = loadingAccommodation[accommodationId];
+                              const expanded = expandedAccommodations[accommodationId];
+                              const hasDetail = info && (info.capacity !== undefined || info.pricePerNight !== undefined || info.description);
+                              return (
+                                <div key={accommodationId || i} className="flex flex-col">
+                                  <div className="flex items-center text-sm group">
+                                    {loading ? (
+                                      <>
+                                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
+                                        <span className="text-slate-500">Loading...</span>
+                                      </>
+                                    ) : info ? (
+                                      <>
+                                        <Check className="h-4 w-4 text-teal-500 mr-2 flex-shrink-0" />
+                                        <span className="text-slate-700 font-semibold">{info.roomTypeName || a.roomType || "Room"}</span>
+                                        {hasDetail && (
+                                          <span
+                                            className={`ml-2 cursor-pointer transition-transform ${expanded ? 'rotate-180' : ''}`}
+                                            onClick={() => setExpandedAccommodations(prev => ({ ...prev, [accommodationId]: !prev[accommodationId] }))}
+                                          >▼</span>
+                                        )}
+                                      </>
+                                    ) : (
+                                      <span className="text-slate-500 italic">No info</span>
+                                    )}
+                                  </div>
+                                  {expanded && info && (
+                                    <div className="ml-6 mt-1 text-xs text-slate-600 space-y-1">
+                                      {typeof info.capacity !== 'undefined' && (
+                                        <div>
+                                          <span className="font-semibold">Capacity:</span> {info.capacity}
+                                        </div>
+                                      )}
+                                      {typeof info.pricePerNight !== 'undefined' && (
+                                        <div>
+                                          <span className="font-semibold">Price/night:</span> {info.pricePerNight.toLocaleString()}₫
+                                        </div>
+                                      )}
+                                      {info.description && (
+                                        <div>
+                                          <span className="font-semibold">Description:</span> {info.description}
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : pkg.basicPlanTypeCode === 'LIFEACTIVITIES' && pkg.entitlements && pkg.entitlements.length > 0 ? (
+                          <div className="space-y-2">
+                            {pkg.entitlements.map((e: any, i: number) => {
+                              const entitlementId = e.entitlementId;
+                              const info = accommodationInfo[entitlementId];
+                              const loading = loadingAccommodation[entitlementId];
+                              const expanded = expandedAccommodations[entitlementId];
+                              return (
+                                <div key={entitlementId || i} className="flex flex-col">
+                                  <div className="flex items-center text-sm group cursor-pointer" onClick={() => {
+                                    setExpandedAccommodations(prev => ({ ...prev, [entitlementId]: !prev[entitlementId] }));
+                                    if (!info && !loading) {
+                                      setLoadingAccommodation(prev => ({ ...prev, [entitlementId]: true }));
+                                      api.get(`/api/membership/EntitlementRule/${entitlementId}`)
+                                        .then(res => setAccommodationInfo(prev => ({ ...prev, [entitlementId]: res.data || res })))
+                                        .catch(() => setAccommodationInfo(prev => ({ ...prev, [entitlementId]: null })))
+                                        .finally(() => setLoadingAccommodation(prev => ({ ...prev, [entitlementId]: false })));
+                                    }
+                                  }}>
+                                    <Check className="h-4 w-4 text-teal-500 mr-2 flex-shrink-0" />
+                                    <span className="text-slate-700 font-semibold">
+                                      {(info && info.nextUServiceName) ? info.nextUServiceName : e.nextUServiceName}
+                                    </span>
+                                    <span className={`ml-2 transition-transform ${expanded ? 'rotate-180' : ''}`}>▼</span>
+                                  </div>
+                                  {expanded && (
+                                    loading ? (
+                                      <div className="ml-6 mt-1 text-xs text-slate-500">Loading...</div>
+                                    ) : info && (
+                                      <div className="ml-6 mt-1 text-xs text-slate-600 space-y-1">
+                                        {typeof info.price !== 'undefined' && (
+                                          <div>
+                                            <span className="font-semibold">Price:</span> {info.price}
+                                          </div>
+                                        )}
+                                        {typeof info.creditAmount !== 'undefined' && (
+                                          <div>
+                                            <span className="font-semibold">Credit Amount:</span> {info.creditAmount}
+                                          </div>
+                                        )}
+                                        {typeof info.period !== 'undefined' && (
+                                          <div>
+                                            <span className="font-semibold">Period:</span> {info.period}
+                                          </div>
+                                        )}
+                                        {info.note && (
+                                          <div>
+                                            <span className="font-semibold">Note:</span> {info.note}
+                                          </div>
+                                        )}
+                                      </div>
+                                    )
+                                  )}
+                                </div>
+                              );
+                            })}
                           </div>
                         ) : (
-                          <div className="space-y-2">
-                            {(nextServiceNames[pkg.id] || []).length === 0 ? (
-                              <div className="text-slate-500 text-sm italic">No included services</div>
-                            ) : (
-                              nextServiceNames[pkg.id].map((name, i) => (
-                                <div key={i} className="flex items-center text-sm">
-                                  <Check className="h-4 w-4 text-teal-500 mr-2 flex-shrink-0" />
-                                  <span className="text-slate-700">{name}</span>
-                                </div>
-                              ))
-                            )}
-                          </div>
+                          <div className="text-slate-500 text-sm italic">No included services</div>
                         )}
                       </div>
 
@@ -433,18 +585,28 @@ export default function PackageSection({
                     </CardContent>
                   </Card>
                 ))}
+                {/* View all button for preview mode */}
+                {isPreview && (
+                  <div className="col-span-full flex justify-center mt-8">
+                    <Link href="/packages/all">
+                      <Button className="rounded-full px-8 py-3 bg-gradient-to-r from-[#28c4dd] to-[#5661b3] text-white hover:shadow-lg transition-all duration-300">
+                        View all packages
+                      </Button>
+                    </Link>
+                  </div>
+                )}
               </div>
             )}
 
             {showType === 'combo' && (
-              <div className="flex flex-wrap justify-center gap-8">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-8 justify-center">
                 {limitedCombos.length === 0 && (
                   <div className="w-full text-center py-12">
                     <div className="text-slate-500 text-lg">No combo packages available for {selectedLocation}.</div>
                   </div>
                 )}
                 {limitedCombos.map((pkg, idx) => (
-                  <Card key={pkg.id} className={`w-full max-w-lg relative overflow-hidden rounded-3xl border-0 shadow-xl hover:shadow-2xl transition-all duration-500 transform hover:-translate-y-2 ${
+                  <Card key={pkg.id} className={`w-full max-w-md relative overflow-hidden rounded-3xl border-0 shadow-xl hover:shadow-2xl transition-all duration-500 transform hover:-translate-y-2 ${
                     idx === 0 ? 'ring-2 ring-teal-500 scale-105' : ''
                   }`}>
                     {/* Popular Badge */}
@@ -503,6 +665,16 @@ export default function PackageSection({
                     </CardContent>
                   </Card>
                 ))}
+                {/* View all button for preview mode */}
+                {isPreview && (
+                  <div className="col-span-full flex justify-center mt-8">
+                    <Link href="/packages/all">
+                      <Button className="rounded-full px-8 py-3 bg-gradient-to-r from-teal-600 to-blue-600 text-white hover:shadow-lg transition-all duration-300">
+                        View all packages
+                      </Button>
+                    </Link>
+                  </div>
+                )}
               </div>
             )}
           </>

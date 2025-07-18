@@ -318,16 +318,29 @@ export default function BasicRoomPackageDetail({ id, router }: { id: string, rou
           {/* Header + Info giống trang room */}
           <div className="mb-6">
             <h1 className="text-3xl font-bold text-slate-800 mb-2">{pkg.name}</h1>
-            <div className="flex items-center gap-4 text-slate-600">
-              <div className="flex items-center gap-1">
-                <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                <span>4.8</span>
-                <span>(24 reviews)</span>
+            <div className="flex flex-col gap-2 text-slate-600">
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-1">
+                  <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                  <span>4.8</span>
+                  <span>(24 reviews)</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <MapPin className="h-4 w-4" />
+                  <span>{pkg.locationName || "City Center"}</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="font-semibold">Type:</span>
+                  <span>{pkg.basicPlanTypeCode}</span>
+                </div>
               </div>
-              <div className="flex items-center gap-1">
-                <MapPin className="h-4 w-4" />
-                <span>{pkg.locationName || "City Center"}</span>
-              </div>
+              {/* Show accomodation info if available */}
+              {pkg.acomodations && pkg.acomodations.length > 0 && (
+                <div className="flex flex-col gap-1 mt-2 text-slate-700 text-sm">
+                  <div><span className="font-semibold">Room type:</span> {pkg.acomodations[0].roomType}</div>
+                  <div><span className="font-semibold">Description:</span> {pkg.acomodations[0].accomodationDescription}</div>
+                </div>
+              )}
             </div>
           </div>
 
