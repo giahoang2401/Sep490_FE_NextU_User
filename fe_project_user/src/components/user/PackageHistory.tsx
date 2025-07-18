@@ -223,6 +223,7 @@ export default function PackageList() {
       case 'basic': return list.filter(p => p.packageType?.toLowerCase() === 'basic')
       case 'combo': return list.filter(p => p.packageType?.toLowerCase() === 'combo')
       case 'pending': return list.filter(p => p.status?.toLowerCase() === 'pending')
+      case 'pendingpayment': return list.filter(p => p.status?.toLowerCase() === 'pendingpayment')
       case 'completed': return list.filter(p => p.status?.toLowerCase() === 'completed')
       default: return list
     }
@@ -232,19 +233,62 @@ export default function PackageList() {
     return <div className="text-center py-12 text-slate-500">Loading...</div>
   }
 
+  // Tính toán thống kê
+  const totalPackages = packageRequests.length;
+  const pendingPayment = packageRequests.filter(p => p.status?.toLowerCase() === 'pendingpayment').length;
+  const completed = packageRequests.filter(p => p.status?.toLowerCase() === 'completed').length;
+  const processing = packageRequests.filter(p => p.status?.toLowerCase() === 'pending' || p.status?.toLowerCase() === 'approved').length;
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full max-w-full px-0 md:px-2"> {/* max-w-full để đồng bộ với layout ngoài */}
+      {/* Dashboard thống kê */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <div className="rounded-2xl bg-gradient-to-br from-blue-400 to-blue-600 text-white flex flex-col items-center justify-center py-6 shadow">
+          <span className="text-4xl mb-2">📦</span>
+          <span className="text-3xl font-bold">{totalPackages}</span>
+          <span className="text-base mt-1">Total Packages</span>
+        </div>
+        <div className="rounded-2xl bg-gradient-to-br from-yellow-300 to-yellow-500 text-white flex flex-col items-center justify-center py-6 shadow">
+          <span className="text-4xl mb-2">⏳</span>
+          <span className="text-3xl font-bold">{pendingPayment}</span>
+          <span className="text-base mt-1">Pending Payment</span>
+        </div>
+        <div className="rounded-2xl bg-gradient-to-br from-green-400 to-green-600 text-white flex flex-col items-center justify-center py-6 shadow">
+          <span className="text-4xl mb-2">✅</span>
+          <span className="text-3xl font-bold">{completed}</span>
+          <span className="text-base mt-1">Completed</span>
+        </div>
+        <div className="rounded-2xl bg-gradient-to-br from-purple-400 to-purple-600 text-white flex flex-col items-center justify-center py-6 shadow">
+          <span className="text-4xl mb-2">🔄</span>
+          <span className="text-3xl font-bold">{processing}</span>
+          <span className="text-base mt-1">Processing</span>
+        </div>
+      </div>
+      {/* Filter/search bar placeholder (nếu muốn thêm sau) */}
+      {/* <div className="rounded-xl bg-white shadow p-4 flex flex-col md:flex-row gap-2 items-center mb-4">
+        <input className="flex-1 border rounded-lg px-4 py-2" placeholder="Search packages, locations.." />
+        <select className="border rounded-lg px-3 py-2">
+          <option>All Status</option>
+        </select>
+        <select className="border rounded-lg px-3 py-2">
+          <option>All Types</option>
+        </select>
+        <select className="border rounded-lg px-3 py-2">
+          <option>All Time</option>
+        </select>
+      </div> */}
       <Tabs value={tab} onValueChange={setTab} className="mb-4">
         <TabsList>
           <TabsTrigger value="all">All</TabsTrigger>
           <TabsTrigger value="basic">Basic</TabsTrigger>
           <TabsTrigger value="combo">Combo</TabsTrigger>
           <TabsTrigger value="pending">Pending</TabsTrigger>
+          <TabsTrigger value="pendingpayment">Pending Payment</TabsTrigger>
           <TabsTrigger value="completed">Completed</TabsTrigger>
         </TabsList>
       </Tabs>
       {filterPackages(packageRequests).length === 0 ? (
-        <Card className="rounded-2xl border-0 shadow-lg">
+        <Card className="rounded-2xl border-0 shadow-lg w-full">
           <CardContent className="p-12 text-center">
             <Package className="h-16 w-16 text-slate-400 mx-auto mb-4" />
             <h3 className="text-xl font-semibold text-slate-800 mb-2">No Packages</h3>
@@ -252,36 +296,46 @@ export default function PackageList() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 w-full">
           {filterPackages(packageRequests).map((request) => (
-            <Card key={request.requestId} className={`rounded-2xl border-0 shadow-lg cursor-pointer transition hover:shadow-xl ${request.packageType?.toLowerCase() === 'combo' ? 'bg-purple-50' : 'bg-blue-50'}`} onClick={() => handleShowDetail(request)}>
-              <CardHeader className="flex flex-row items-center justify-between p-6 pb-2">
-                <div className="flex items-center gap-3">
-                  {request.packageType?.toLowerCase() === 'combo' ? <Layers className="h-8 w-8 text-purple-500" /> : <Package className="h-8 w-8 text-blue-500" />}
-                  <div>
-                    <CardTitle className="text-lg font-bold flex items-center gap-2">
-                      {request.requestedPackageName}
-                      <Badge className={`text-xs px-3 py-1 ${request.packageType?.toLowerCase() === 'combo' ? 'bg-purple-500' : 'bg-blue-500'} text-white`}>{request.packageType?.toUpperCase()}</Badge>
-                    </CardTitle>
-                    <p className="text-slate-600 capitalize text-sm flex items-center gap-1"><MapPin className="h-4 w-4" />{request.locationName}</p>
-                  </div>
+            <Card key={request.requestId} className={`w-full h-full flex flex-col justify-between rounded-2xl border-0 shadow-lg cursor-pointer transition hover:shadow-xl ${request.packageType?.toLowerCase() === 'combo' ? 'bg-purple-50' : 'bg-blue-50'}`} onClick={() => handleShowDetail(request)}>
+              <CardHeader className="p-6 pb-2">
+                {/* Badge trạng thái lên trên cùng, full width, căn phải */}
+                <div className="flex justify-end w-full mb-2">
+                  <Badge className={
+                    `${
+                      request.packageType?.toLowerCase() === 'combo' && request.status?.toLowerCase() === 'pending'
+                        ? 'bg-purple-500'
+                        : getStatusColor(request.status)
+                    } text-white text-xs px-3 py-1`}
+                  >
+                    {getStatusIcon(request.status)}
+                    <span className="ml-1 capitalize">{request.status}</span>
+                  </Badge>
                 </div>
-                <Badge className={
-                  `${
-                    request.packageType?.toLowerCase() === 'combo' && request.status?.toLowerCase() === 'pending'
-                      ? 'bg-purple-500'
-                      : getStatusColor(request.status)
-                  } text-white text-xs px-3 py-1`}
-                >
-                  {getStatusIcon(request.status)}
-                  <span className="ml-1 capitalize">{request.status}</span>
-                </Badge>
+                <div className="flex items-center gap-3 w-full">
+                  {/* Icon */}
+                  {request.packageType?.toLowerCase() === 'combo'
+                    ? <Layers className="h-8 w-8 text-purple-500" />
+                    : <Package className="h-8 w-8 text-blue-500" />}
+                  {/* Badge loại package */}
+                  <Badge className={`text-xs px-3 py-1 ${request.packageType?.toLowerCase() === 'combo' ? 'bg-purple-500' : 'bg-blue-500'} text-white`}>
+                    {request.packageType?.toUpperCase()}
+                  </Badge>
+                  {/* Tên package */}
+                  <CardTitle className="text-lg font-bold break-words flex-1">
+                    {request.requestedPackageName}
+                  </CardTitle>
+                </div>
+                <p className="text-slate-600 capitalize text-sm flex items-center gap-1 mt-1">
+                  <MapPin className="h-4 w-4" />{request.locationName}
+                </p>
               </CardHeader>
-              <CardContent className="space-y-2 pt-0">
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+              <CardContent className="space-y-2 pt-0 flex-1 flex flex-col justify-between">
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1 mb-2">
                   <div>
                     <span className="block text-xs text-slate-500">Amount</span>
-                    <span className="font-bold text-base">₫{request.amount?.toLocaleString()}</span>
+                    <span className="font-bold text-base break-words">₫{request.amount?.toLocaleString()}</span>
                   </div>
                   <div>
                     <span className="block text-xs text-slate-500">Purchase Date</span>
@@ -295,7 +349,7 @@ export default function PackageList() {
                     <span className="block text-xs text-slate-500">Expire At</span>
                     <span className="font-bold text-base">{request.expireAt ? new Date(request.expireAt).toLocaleDateString() : '-'}</span>
                   </div>
-                  <div>
+                  <div className="col-span-2">
                     <span className="block text-xs text-slate-500">Payment Method</span>
                     <span className="font-bold text-base">{request.paymentMethod || '-'}</span>
                   </div>
@@ -357,9 +411,8 @@ export default function PackageList() {
                   </div>
                 )}
               </CardContent>
-              <CardFooter className="flex justify-end gap-2 pt-0">
+              <CardFooter className="flex justify-end gap-2 pt-0 mt-auto">
                 <Button variant="outline" onClick={e => { e.stopPropagation(); handleShowDetail(request); }}>View Details</Button>
-                {/* Nếu cần thêm action khác, thêm ở đây */}
               </CardFooter>
             </Card>
           ))}
