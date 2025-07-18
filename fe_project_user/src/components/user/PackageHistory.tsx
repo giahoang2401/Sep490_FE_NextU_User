@@ -94,26 +94,37 @@ export default function PackageList() {
     fetchDetail()
   }, [showDetail, detailPackage])
 
-  // Fetch accommodation or entitlement info for a basic plan
+  // Fetch accommodation or entitlement info for a basic plan (dùng cho cả basic lẻ)
   async function fetchBasicPlanDetail(basic: any) {
     if (!basic || !basic.id) return;
     setLoadingBasicDetail(prev => ({ ...prev, [basic.id]: true }))
     try {
       let detail: any = {}
+      // Nếu có acom, fetch accom detail
       if (basic.acomodations && Array.isArray(basic.acomodations) && basic.acomodations.length > 0) {
-        // Lấy accommodation info đầu tiên (hoặc có thể lặp qua tất cả)
-        const accId = basic.acomodations[0].accomodationId
-        if (accId) {
-          const res = await api.get(`/api/membership/AccommodationOptions/${accId}`)
-          detail.accommodation = res.data
-        }
+        const accomDetails = await Promise.all(
+          basic.acomodations.map(async (a: any) => {
+            if (a.accomodationId) {
+              const res = await api.get(`/api/membership/AccommodationOptions/${a.accomodationId}`)
+              return res.data
+            }
+            return null
+          })
+        )
+        detail.acomodations = accomDetails.filter(Boolean)
       }
+      // Nếu là entitlement, fetch entitlement detail
       if (basic.basicPlanTypeCode === 'LIFEACTIVITIES' && basic.entitlements && Array.isArray(basic.entitlements) && basic.entitlements.length > 0) {
-        const entId = basic.entitlements[0].entitlementId
-        if (entId) {
-          const res = await api.get(`/api/membership/EntitlementRule/${entId}`)
-          detail.entitlement = res.data
-        }
+        const entDetails = await Promise.all(
+          basic.entitlements.map(async (e: any) => {
+            if (e.entitlementId) {
+              const res = await api.get(`/api/membership/EntitlementRule/${e.entitlementId}`)
+              return res.data
+            }
+            return null
+          })
+        )
+        detail.entitlements = entDetails.filter(Boolean)
       }
       setBasicPlanDetails(prev => ({ ...prev, [basic.id]: detail }))
     } catch {
@@ -394,21 +405,53 @@ export default function PackageList() {
                     {/* Basic package detail */}
                     {detailPackage.packageType?.toLowerCase() === 'basic' && (
                       <>
-                        <div className="text-xs text-slate-700 mb-2">{detailData.description}</div>
-                        <div className="grid grid-cols-2 gap-2">
-                          <span>Price: <b>₫{detailData.price?.toLocaleString()}</b></span>
-                          <span>Location: <b>{detailData.locationName}</b></span>
-                          <span>Type: <b>{detailData.basicPlanType}</b></span>
-                          <span>Level: <b>{detailData.planLevelName}</b></span>
-                        </div>
-                        {detailData.acommodations && detailData.acommodations.length > 0 && (
+                        {/* Collapse detail cho basic, fetch accom/entitlement detail giống combo */}
+                        {(detailData.acomodations && Array.isArray(detailData.acomodations) && detailData.acomodations.length > 0) || (detailData.basicPlanTypeCode === 'LIFEACTIVITIES' && detailData.entitlements && Array.isArray(detailData.entitlements) && detailData.entitlements.length > 0) ? (
                           <div className="mt-2">
-                            <span className="block text-xs text-blue-700 font-semibold mb-1">Accommodations:</span>
-                            <ul className="list-disc list-inside text-sm text-blue-900">
-                              {detailData.acommodations.map((a: any, idx: number) => <li key={idx}>{a.acomodationDescription} ({a.roomType})</li>)}
-                            </ul>
+                            <span className="block text-xs text-blue-700 font-semibold mb-1">Details:</span>
+                            <div className="space-y-2">
+                              <div className="flex items-center mb-2">
+                                <Check className="h-5 w-5 text-teal-500 mr-2 flex-shrink-0" />
+                                <span className="flex items-center cursor-pointer group text-blue-900 font-semibold" onClick={() => handleToggleBasicCollapse(detailData)}>
+                                  {detailData.name}
+                                  <ChevronDown className={`h-4 w-4 ml-2 transition-transform ${expandedBasicPlans[detailData.id] ? 'rotate-180' : ''}`} />
+                                </span>
+                              </div>
+                              {expandedBasicPlans[detailData.id] && (
+                                <div className="ml-7 mt-1 text-xs text-slate-600 space-y-3">
+                                  {loadingBasicDetail[detailData.id] && <div className="text-slate-400">Loading...</div>}
+                                  {!loadingBasicDetail[detailData.id] && basicPlanDetails[detailData.id] && (
+                                    <>
+                                      {/* Hiển thị accom detail nếu có */}
+                                      {basicPlanDetails[detailData.id].acomodations && basicPlanDetails[detailData.id].acomodations.length > 0 && basicPlanDetails[detailData.id].acomodations.map((a: any, idx: number) => (
+                                        <div key={a.id || idx} className="mb-2">
+                                          <div><span className="font-semibold">Room:</span> {a.roomTypeName || a.roomType}</div>
+                                          <div><span className="font-semibold">Capacity:</span> {a.capacity}</div>
+                                          <div><span className="font-semibold">Price/night:</span> {a.pricePerNight?.toLocaleString()}₫</div>
+                                          <div><span className="font-semibold">Description:</span> {a.description}</div>
+                                        </div>
+                                      ))}
+                                      {/* Hiển thị entitlement detail nếu có */}
+                                      {basicPlanDetails[detailData.id].entitlements && basicPlanDetails[detailData.id].entitlements.length > 0 && basicPlanDetails[detailData.id].entitlements.map((e: any, idx: number) => (
+                                        <div key={e.id || idx} className="mb-2">
+                                          <div><span className="font-semibold">Service:</span> {e.nextUServiceName}</div>
+                                          <div><span className="font-semibold">Price:</span> {e.price}</div>
+                                          <div><span className="font-semibold">Credit Amount:</span> {e.creditAmount}</div>
+                                          <div><span className="font-semibold">Period:</span> {e.period}</div>
+                                          <div><span className="font-semibold">Note:</span> {e.note}</div>
+                                        </div>
+                                      ))}
+                                      {/* Nếu không có gì */}
+                                      {!basicPlanDetails[detailData.id].acomodations && !basicPlanDetails[detailData.id].entitlements && (
+                                        <div className="italic text-slate-400">No detail info</div>
+                                      )}
+                                    </>
+                                  )}
+                                </div>
+                              )}
+                            </div>
                           </div>
-                        )}
+                        ) : null}
                       </>
                     )}
                     {/* Combo package detail */}
