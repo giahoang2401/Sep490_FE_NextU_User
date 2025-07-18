@@ -462,69 +462,49 @@ export default function PackageList() {
                           <div className="mt-2">
                             <span className="block text-xs text-purple-700 font-semibold mb-1">Included Basic Plans:</span>
                             <div className="space-y-2">
-                              {detailData.basicPlans.map((b: any, idx: number) => {
-                                return (
-                                  <div key={b.id}>
-                                    <div className="flex items-center mb-2">
-                                      <Check className="h-5 w-5 text-teal-500 mr-2 flex-shrink-0" />
-                                      <span className="flex items-center cursor-pointer group text-purple-900 font-semibold" onClick={() => handleToggleBasicCollapse(b)}>
-                                        {b.name}
-                                        <ChevronDown className={`h-4 w-4 ml-2 transition-transform ${expandedBasicPlans[b.id] ? 'rotate-180' : ''}`} />
-                                      </span>
-                                    </div>
-                                    {expandedBasicPlans[b.id] && (
-                                      <div className="ml-7 mt-1 text-xs text-slate-600 space-y-1">
-                                        {loadingBasicDetail[b.id] && <div className="text-slate-400">Loading...</div>}
-                                        {!loadingBasicDetail[b.id] && basicPlanDetails[b.id] && (
-                                          <>
-                                            {/* Accommodation detail */}
-                                            {basicPlanDetails[b.id].accommodation && (
-                                              <>
-                                                <div>
-                                                  <span className="font-semibold">Room:</span> {basicPlanDetails[b.id].accommodation.roomTypeName}
-                                                </div>
-                                                <div>
-                                                  <span className="font-semibold">Capacity:</span> {basicPlanDetails[b.id].accommodation.capacity}
-                                                </div>
-                                                <div>
-                                                  <span className="font-semibold">Price/night:</span> {basicPlanDetails[b.id].accommodation.pricePerNight?.toLocaleString()}₫
-                                                </div>
-                                                <div>
-                                                  <span className="font-semibold">Description:</span> {basicPlanDetails[b.id].accommodation.description}
-                                                </div>
-                                              </>
-                                            )}
-                                            {/* Entitlement detail */}
-                                            {basicPlanDetails[b.id].entitlement && (
-                                              <>
-                                                <div>
-                                                  <span className="font-semibold">Service:</span> {basicPlanDetails[b.id].entitlement.nextUServiceName}
-                                                </div>
-                                                <div>
-                                                  <span className="font-semibold">Price:</span> {basicPlanDetails[b.id].entitlement.price}
-                                                </div>
-                                                <div>
-                                                  <span className="font-semibold">Credit Amount:</span> {basicPlanDetails[b.id].entitlement.creditAmount}
-                                                </div>
-                                                <div>
-                                                  <span className="font-semibold">Period:</span> {basicPlanDetails[b.id].entitlement.period}
-                                                </div>
-                                                <div>
-                                                  <span className="font-semibold">Note:</span> {basicPlanDetails[b.id].entitlement.note}
-                                                </div>
-                                              </>
-                                            )}
-                                            {/* Nếu không có gì */}
-                                            {!basicPlanDetails[b.id].accommodation && !basicPlanDetails[b.id].entitlement && (
-                                              <div className="italic text-slate-400">No detail info</div>
-                                            )}
-                                          </>
-                                        )}
-                                      </div>
-                                    )}
+                              {detailData.basicPlans.map((b: any, idx: number) => (
+                                <div key={b.id}>
+                                  <div className="flex items-center mb-2">
+                                    <Check className="h-5 w-5 text-teal-500 mr-2 flex-shrink-0" />
+                                    <span className="flex items-center cursor-pointer group text-purple-900 font-semibold" onClick={() => handleToggleBasicCollapse(b)}>
+                                      {b.name}
+                                      <ChevronDown className={`h-4 w-4 ml-2 transition-transform ${expandedBasicPlans[b.id] ? 'rotate-180' : ''}`} />
+                                    </span>
                                   </div>
-                                )
-                              })}
+                                  {expandedBasicPlans[b.id] && (
+                                    <div className="ml-7 mt-1 text-xs text-slate-600 space-y-3">
+                                      {loadingBasicDetail[b.id] && <div className="text-slate-400">Loading...</div>}
+                                      {!loadingBasicDetail[b.id] && basicPlanDetails[b.id] && (
+                                        <>
+                                          {/* Hiển thị accom detail nếu có */}
+                                          {basicPlanDetails[b.id].acomodations && basicPlanDetails[b.id].acomodations.length > 0 && basicPlanDetails[b.id].acomodations.map((a: any, idx: number) => (
+                                            <div key={a.id || idx} className="mb-2">
+                                              <div><span className="font-semibold">Room:</span> {a.roomTypeName || a.roomType}</div>
+                                              <div><span className="font-semibold">Capacity:</span> {a.capacity}</div>
+                                              <div><span className="font-semibold">Price/night:</span> {a.pricePerNight?.toLocaleString()}₫</div>
+                                              <div><span className="font-semibold">Description:</span> {a.description}</div>
+                                            </div>
+                                          ))}
+                                          {/* Hiển thị entitlement detail nếu có */}
+                                          {basicPlanDetails[b.id].entitlements && basicPlanDetails[b.id].entitlements.length > 0 && basicPlanDetails[b.id].entitlements.map((e: any, idx: number) => (
+                                            <div key={e.id || idx} className="mb-2">
+                                              <div><span className="font-semibold">Service:</span> {e.nextUServiceName}</div>
+                                              <div><span className="font-semibold">Price:</span> {e.price}</div>
+                                              <div><span className="font-semibold">Credit Amount:</span> {e.creditAmount}</div>
+                                              <div><span className="font-semibold">Period:</span> {e.period}</div>
+                                              <div><span className="font-semibold">Note:</span> {e.note}</div>
+                                            </div>
+                                          ))}
+                                          {/* Nếu không có gì */}
+                                          {!basicPlanDetails[b.id].acomodations && !basicPlanDetails[b.id].entitlements && (
+                                            <div className="italic text-slate-400">No detail info</div>
+                                          )}
+                                        </>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
                             </div>
                           </div>
                         )}
