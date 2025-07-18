@@ -4,6 +4,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { DatePickerModal } from "@/components/date-picker-modal";
 import { isLogged } from "@/utils/auth";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { useAuth } from "@/components/auth-context";
+import { AlertCircle, UserCheck } from "lucide-react";
 
 function BasicMiniDetail({ basic, onSelectRoom, selectedRoomId, rooms, selectedDates, onShowDatePicker, roomAvailability }: { basic: any, onSelectRoom?: (room: any) => void, selectedRoomId?: string, rooms?: any[], selectedDates?: { moveIn: Date | null; moveOut: Date | null }, onShowDatePicker?: () => void, roomAvailability?: { [roomId: string]: any } }) {
   if (!basic) return null;
@@ -90,6 +93,9 @@ export default function ComboPackageDetail({ id, router }: { id: string, router:
   const [datePickerSource, setDatePickerSource] = useState<{ [basicId: string]: 'left' | 'right' | null }>({});
   const [duration, setDuration] = useState<{ [basicId: string]: any }>({});
   const [roomAvailability, setRoomAvailability] = useState<{ [basicId: string]: { [roomId: string]: any } }>({});
+  const { isLoggedIn } = useAuth();
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
 
   // Fetch combo, basics, rooms, durations
   useEffect(() => {
@@ -273,17 +279,32 @@ export default function ComboPackageDetail({ id, router }: { id: string, router:
     setSelectedBasic(basic);
   };
 
+  const checkProfileComplete = async () => {
+    try {
+      const res = await api.get("/api/user/profiles/profileme");
+      const data = res.data || res;
+      if (!data.fullName || !data.phone || !data.dob || !data.gender || !data.address) {
+        return false;
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
   const handlePayNow = async () => {
     if (!selectedRoom || !livingBasic || !livingSelectedDates || !livingSelectedDates.moveIn) return;
     setIsPaying(true);
     setMessage(null);
-    // Kiểm tra đăng nhập trước khi gọi API
-    if (!isLogged()) {
-      setMessage("Vui lòng đăng nhập để tiếp tục.");
+    if (!isLoggedIn) {
+      setShowAuthModal(true);
       setIsPaying(false);
-      setTimeout(() => {
-        router.push("/login");
-      }, 1800);
+      return;
+    }
+    const isProfileComplete = await checkProfileComplete();
+    if (!isProfileComplete) {
+      setShowProfileModal(true);
+      setIsPaying(false);
       return;
     }
     try {
@@ -302,16 +323,7 @@ export default function ComboPackageDetail({ id, router }: { id: string, router:
         setMessage("Yêu cầu mua combo thất bại. Vui lòng thử lại.");
       }
     } catch (err: any) {
-      // Kiểm tra lỗi trả về từ API
       const errorMsg = err?.response?.data?.message || "Yêu cầu mua combo thất bại. Vui lòng thử lại.";
-      // Nếu lỗi thiếu thông tin tài khoản
-      if (errorMsg.toLowerCase().includes("profile") || errorMsg.toLowerCase().includes("account") || errorMsg.toLowerCase().includes("cập nhật thông tin") || errorMsg.toLowerCase().includes("update your information")) {
-        setMessage("Vui lòng cập nhật thông tin tài khoản để tiếp tục.");
-        setTimeout(() => {
-          router.push("/account");
-        }, 1800);
-        return;
-      }
       setMessage(errorMsg);
     } finally {
       setIsPaying(false);
@@ -503,6 +515,26 @@ export default function ComboPackageDetail({ id, router }: { id: string, router:
           onOpenChange={open => setShowDatePicker(prev => ({ ...prev, [livingBasic.id]: open }))}
           onDatesSelect={dates => handleDateRangeSelect(livingBasic.id, dates)}
         />
+      )}
+      {showAuthModal && (
+        <Dialog open={showAuthModal} onOpenChange={setShowAuthModal}>
+          <DialogContent className="max-w-sm p-8 text-center flex flex-col items-center">
+            <AlertCircle className="text-blue-500 mb-3" size={48} />
+            <DialogTitle className="text-2xl font-bold mb-2">Bạn cần đăng nhập</DialogTitle>
+            <DialogDescription className="mb-4 text-base text-slate-600">Vui lòng đăng nhập để sử dụng chức năng này và tiếp tục quá trình mua combo.</DialogDescription>
+            <Button className="mt-2 w-full py-3 text-base font-semibold rounded-full bg-blue-600 hover:bg-blue-700 transition" onClick={() => { setShowAuthModal(false); router.push("/login"); }}>Đăng nhập</Button>
+          </DialogContent>
+        </Dialog>
+      )}
+      {showProfileModal && (
+        <Dialog open={showProfileModal} onOpenChange={setShowProfileModal}>
+          <DialogContent className="max-w-sm p-8 text-center flex flex-col items-center">
+            <UserCheck className="text-green-500 mb-3" size={48} />
+            <DialogTitle className="text-2xl font-bold mb-2">Hoàn thiện hồ sơ</DialogTitle>
+            <DialogDescription className="mb-4 text-base text-slate-600">Bạn cần hoàn thiện hồ sơ cá nhân (họ tên, số điện thoại, ngày sinh, giới tính, địa chỉ) để tiếp tục mua combo.</DialogDescription>
+            <Button className="mt-2 w-full py-3 text-base font-semibold rounded-full bg-green-600 hover:bg-green-700 transition" onClick={() => { setShowProfileModal(false); router.push("/account/about-me"); }}>Hoàn thiện hồ sơ</Button>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   );

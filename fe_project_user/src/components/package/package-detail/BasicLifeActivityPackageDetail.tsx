@@ -1,16 +1,21 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CheckCircle } from "lucide-react";
+import { CheckCircle, AlertCircle, UserCheck } from "lucide-react";
 import api from "@/utils/axiosConfig";
 import { useRouter } from "next/navigation";
 import { isLogged } from "@/utils/auth";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { useAuth } from "@/components/auth-context";
 
 export default function BasicLifeActivityPackageDetail({ id, router }: { id: string, router: any }) {
   const [pkg, setPkg] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [isPaying, setIsPaying] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const { isLoggedIn } = useAuth();
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
 
   useEffect(() => {
     async function fetchData() {
@@ -28,16 +33,34 @@ export default function BasicLifeActivityPackageDetail({ id, router }: { id: str
     if (id) fetchData();
   }, [id]);
 
+  const checkProfileComplete = async () => {
+    try {
+      const res = await api.get("/api/user/profiles/profileme");
+      const data = res.data || res;
+      // Kiểm tra các trường bắt buộc
+      if (!data.fullName || !data.phone || !data.dob || !data.gender || !data.address) {
+        return false;
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
   const handleBuyNow = async () => {
     if (!pkg) return;
     setIsPaying(true);
     setMessage(null);
-    if (!isLogged()) {
-      setMessage("Vui lòng đăng nhập để tiếp tục.");
+    if (!isLoggedIn) {
+      setShowAuthModal(true);
       setIsPaying(false);
-      setTimeout(() => {
-        router.push("/login");
-      }, 1800);
+      return;
+    }
+    // Kiểm tra hoàn thiện hồ sơ
+    const isProfileComplete = await checkProfileComplete();
+    if (!isProfileComplete) {
+      setShowProfileModal(true);
+      setIsPaying(false);
       return;
     }
     try {
@@ -52,20 +75,11 @@ export default function BasicLifeActivityPackageDetail({ id, router }: { id: str
       if (res.data && res.data.success && res.data.data && res.data.data.paymentUrl && res.data.data.paymentUrl.redirectUrl) {
         window.location.href = res.data.data.paymentUrl.redirectUrl;
       } else {
-        // Nếu không có paymentUrl, chuyển về profile
         window.location.href = "/profile";
       }
     } catch (err: any) {
       const errorMsg = err?.response?.data?.message || "Yêu cầu mua gói thất bại. Vui lòng thử lại.";
-      if (errorMsg.toLowerCase().includes("profile") || errorMsg.toLowerCase().includes("account") || errorMsg.toLowerCase().includes("cập nhật thông tin") || errorMsg.toLowerCase().includes("update your information")) {
-        setMessage("Vui lòng cập nhật thông tin tài khoản để tiếp tục.");
-        setTimeout(() => {
-          router.push("/account");
-        }, 1800);
-        return;
-      }
       setMessage(errorMsg);
-      // alert(err?.response?.data?.message || "Yêu cầu mua gói thất bại. Vui lòng thử lại.");
     } finally {
       setIsPaying(false);
     }
@@ -84,6 +98,26 @@ export default function BasicLifeActivityPackageDetail({ id, router }: { id: str
         <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 bg-white border border-blue-200 shadow-lg rounded-xl px-6 py-3 text-blue-800 font-semibold text-center animate-fade-in">
           {message}
         </div>
+      )}
+      {showAuthModal && (
+        <Dialog open={showAuthModal} onOpenChange={setShowAuthModal}>
+          <DialogContent className="max-w-sm p-8 text-center flex flex-col items-center">
+            <AlertCircle className="text-blue-500 mb-3" size={48} />
+            <DialogTitle className="text-2xl font-bold mb-2">Bạn cần đăng nhập</DialogTitle>
+            <DialogDescription className="mb-4 text-base text-slate-600">Vui lòng đăng nhập để sử dụng chức năng này và tiếp tục quá trình mua gói.</DialogDescription>
+            <Button className="mt-2 w-full py-3 text-base font-semibold rounded-full bg-blue-600 hover:bg-blue-700 transition" onClick={() => { setShowAuthModal(false); router.push("/login"); }}>Đăng nhập</Button>
+          </DialogContent>
+        </Dialog>
+      )}
+      {showProfileModal && (
+        <Dialog open={showProfileModal} onOpenChange={setShowProfileModal}>
+          <DialogContent className="max-w-sm p-8 text-center flex flex-col items-center">
+            <UserCheck className="text-green-500 mb-3" size={48} />
+            <DialogTitle className="text-2xl font-bold mb-2">Hoàn thiện hồ sơ</DialogTitle>
+            <DialogDescription className="mb-4 text-base text-slate-600">Bạn cần hoàn thiện hồ sơ cá nhân (họ tên, số điện thoại, ngày sinh, giới tính, địa chỉ) để tiếp tục mua gói.</DialogDescription>
+            <Button className="mt-2 w-full py-3 text-base font-semibold rounded-full bg-green-600 hover:bg-green-700 transition" onClick={() => { setShowProfileModal(false); router.push("/account/about-me"); }}>Hoàn thiện hồ sơ</Button>
+          </DialogContent>
+        </Dialog>
       )}
       <div className="max-w-3xl mx-auto">
         <button
