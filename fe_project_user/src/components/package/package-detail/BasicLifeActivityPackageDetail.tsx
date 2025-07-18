@@ -4,11 +4,13 @@ import { Button } from "@/components/ui/button";
 import { CheckCircle } from "lucide-react";
 import api from "@/utils/axiosConfig";
 import { useRouter } from "next/navigation";
+import { isLogged } from "@/utils/auth";
 
 export default function BasicLifeActivityPackageDetail({ id, router }: { id: string, router: any }) {
   const [pkg, setPkg] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [isPaying, setIsPaying] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchData() {
@@ -29,6 +31,15 @@ export default function BasicLifeActivityPackageDetail({ id, router }: { id: str
   const handleBuyNow = async () => {
     if (!pkg) return;
     setIsPaying(true);
+    setMessage(null);
+    if (!isLogged()) {
+      setMessage("Vui lòng đăng nhập để tiếp tục.");
+      setIsPaying(false);
+      setTimeout(() => {
+        router.push("/login");
+      }, 1800);
+      return;
+    }
     try {
       const res = await api.post("/api/user/memberships/requestMember", {
         packageId: pkg.id,
@@ -45,7 +56,16 @@ export default function BasicLifeActivityPackageDetail({ id, router }: { id: str
         window.location.href = "/profile";
       }
     } catch (err: any) {
-      alert(err?.response?.data?.message || "Yêu cầu mua gói thất bại. Vui lòng thử lại.");
+      const errorMsg = err?.response?.data?.message || "Yêu cầu mua gói thất bại. Vui lòng thử lại.";
+      if (errorMsg.toLowerCase().includes("profile") || errorMsg.toLowerCase().includes("account") || errorMsg.toLowerCase().includes("cập nhật thông tin") || errorMsg.toLowerCase().includes("update your information")) {
+        setMessage("Vui lòng cập nhật thông tin tài khoản để tiếp tục.");
+        setTimeout(() => {
+          router.push("/account");
+        }, 1800);
+        return;
+      }
+      setMessage(errorMsg);
+      // alert(err?.response?.data?.message || "Yêu cầu mua gói thất bại. Vui lòng thử lại.");
     } finally {
       setIsPaying(false);
     }
@@ -60,6 +80,11 @@ export default function BasicLifeActivityPackageDetail({ id, router }: { id: str
 
   return (
     <div className="min-h-screen py-8 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-[#e8f9fc] via-[#f0fbfd] to-[#cce9fa]">
+      {message && (
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 bg-white border border-blue-200 shadow-lg rounded-xl px-6 py-3 text-blue-800 font-semibold text-center animate-fade-in">
+          {message}
+        </div>
+      )}
       <div className="max-w-3xl mx-auto">
         <button
           className="mb-6 px-4 py-2 rounded-full bg-white border border-slate-200 text-slate-700 font-semibold shadow hover:bg-slate-100 transition"

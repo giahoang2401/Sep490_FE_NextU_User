@@ -6,6 +6,7 @@ import { DatePickerModal } from "@/components/date-picker-modal";
 // import { DurationModal } from "@/components/duration-modal";
 import api from "@/utils/axiosConfig";
 import { useRouter } from "next/navigation";
+import { isLogged } from "@/utils/auth";
 // Thêm import cho date
 import { format } from 'date-fns';
 
@@ -57,6 +58,7 @@ export default function BasicRoomPackageDetail({ id, router }: { id: string, rou
   const [activeTab, setActiveTab] = useState<string>("details");
   const [hoveredRoomId, setHoveredRoomId] = useState<string | null>(null);
   const [isPaying, setIsPaying] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
   const [roomAvailability, setRoomAvailability] = useState<any>({}); // { [roomId]: { viewedBookingStatus, from, to } }
 
   // Lưu selectedRoom vào localStorage để giữ khi reload
@@ -138,6 +140,15 @@ export default function BasicRoomPackageDetail({ id, router }: { id: string, rou
       return;
     }
     setIsPaying(true);
+    setMessage(null);
+    if (!isLogged()) {
+      setMessage("Vui lòng đăng nhập để tiếp tục.");
+      setIsPaying(false);
+      setTimeout(() => {
+        router.push("/login");
+      }, 1800);
+      return;
+    }
     try {
       const res = await api.post("/api/user/memberships/requestMember", {
         packageId: pkg.id,
@@ -154,7 +165,16 @@ export default function BasicRoomPackageDetail({ id, router }: { id: string, rou
         alert("Payment request failed. Please try again later.");
       }
     } catch (err: any) {
-      alert(err?.response?.data?.message || "Payment request failed. Please try again.");
+      const errorMsg = err?.response?.data?.message || "Payment request failed. Please try again.";
+      if (errorMsg.toLowerCase().includes("profile") || errorMsg.toLowerCase().includes("account") || errorMsg.toLowerCase().includes("cập nhật thông tin") || errorMsg.toLowerCase().includes("update your information")) {
+        setMessage("Vui lòng cập nhật thông tin tài khoản để tiếp tục.");
+        setTimeout(() => {
+          router.push("/account");
+        }, 1800);
+        return;
+      }
+      setMessage(errorMsg);
+      // alert(err?.response?.data?.message || "Payment request failed. Please try again.");
     } finally {
       setIsPaying(false);
     }
@@ -278,6 +298,11 @@ export default function BasicRoomPackageDetail({ id, router }: { id: string, rou
 
   return (
     <div className="min-h-screen py-8 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-[#e8f9fc] via-[#f0fbfd] to-[#cce9fa]">
+      {message && (
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 bg-white border border-blue-200 shadow-lg rounded-xl px-6 py-3 text-blue-800 font-semibold text-center animate-fade-in">
+          {message}
+        </div>
+      )}
       <div className="max-w-7xl mx-auto">
         {/* Nút Back */}
         <button

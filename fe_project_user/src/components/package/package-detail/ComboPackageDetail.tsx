@@ -3,6 +3,7 @@ import api from "@/utils/axiosConfig";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { DatePickerModal } from "@/components/date-picker-modal";
+import { isLogged } from "@/utils/auth";
 
 function BasicMiniDetail({ basic, onSelectRoom, selectedRoomId, rooms, selectedDates, onShowDatePicker, roomAvailability }: { basic: any, onSelectRoom?: (room: any) => void, selectedRoomId?: string, rooms?: any[], selectedDates?: { moveIn: Date | null; moveOut: Date | null }, onShowDatePicker?: () => void, roomAvailability?: { [roomId: string]: any } }) {
   if (!basic) return null;
@@ -80,6 +81,8 @@ export default function ComboPackageDetail({ id, router }: { id: string, router:
   const [selectedRoom, setSelectedRoom] = useState<any>(null);
   const [selectedBasic, setSelectedBasic] = useState<any>(null);
   const [isPaying, setIsPaying] = useState(false);
+  // Thêm state cho message
+  const [message, setMessage] = useState<string | null>(null);
   // State cho từng basic living
   const [selectedDates, setSelectedDates] = useState<{ [basicId: string]: { moveIn: Date | null; moveOut: Date | null } }>({});
   const [availabilityDates, setAvailabilityDates] = useState<{ [basicId: string]: { from: string; to: string } }>({});
@@ -273,6 +276,16 @@ export default function ComboPackageDetail({ id, router }: { id: string, router:
   const handlePayNow = async () => {
     if (!selectedRoom || !livingBasic || !livingSelectedDates || !livingSelectedDates.moveIn) return;
     setIsPaying(true);
+    setMessage(null);
+    // Kiểm tra đăng nhập trước khi gọi API
+    if (!isLogged()) {
+      setMessage("Vui lòng đăng nhập để tiếp tục.");
+      setIsPaying(false);
+      setTimeout(() => {
+        router.push("/login");
+      }, 1800);
+      return;
+    }
     try {
       const res = await api.post("/api/user/memberships/requestMember", {
         packageId: combo.id,
@@ -283,13 +296,23 @@ export default function ComboPackageDetail({ id, router }: { id: string, router:
         messageToStaff: "",
         redirectUrl: window.location.origin + "/profile"
       });
-      if (res.data && res.data.success && res.data.data && res.data.data.paymentUrl && res.data.data.paymentUrl.redirectUrl) {
-        window.location.href = res.data.data.paymentUrl.redirectUrl;
+      if (res.data && res.data.success) {
+        router.push("/request-success");
       } else {
-        window.location.href = "/profile";
+        setMessage("Yêu cầu mua combo thất bại. Vui lòng thử lại.");
       }
     } catch (err: any) {
-      alert(err?.response?.data?.message || "Yêu cầu mua combo thất bại. Vui lòng thử lại.");
+      // Kiểm tra lỗi trả về từ API
+      const errorMsg = err?.response?.data?.message || "Yêu cầu mua combo thất bại. Vui lòng thử lại.";
+      // Nếu lỗi thiếu thông tin tài khoản
+      if (errorMsg.toLowerCase().includes("profile") || errorMsg.toLowerCase().includes("account") || errorMsg.toLowerCase().includes("cập nhật thông tin") || errorMsg.toLowerCase().includes("update your information")) {
+        setMessage("Vui lòng cập nhật thông tin tài khoản để tiếp tục.");
+        setTimeout(() => {
+          router.push("/account");
+        }, 1800);
+        return;
+      }
+      setMessage(errorMsg);
     } finally {
       setIsPaying(false);
     }
@@ -300,6 +323,12 @@ export default function ComboPackageDetail({ id, router }: { id: string, router:
 
   return (
     <div className="min-h-screen py-8 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-[#e8f9fc] via-[#f0fbfd] to-[#cce9fa]">
+      {/* Hiển thị message nếu có */}
+      {message && (
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 bg-white border border-blue-200 shadow-lg rounded-xl px-6 py-3 text-blue-800 font-semibold text-center animate-fade-in">
+          {message}
+        </div>
+      )}
       <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Cột trái: Thông tin combo + danh sách basic packages */}
         <div className="lg:col-span-2">
