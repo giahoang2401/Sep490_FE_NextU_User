@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Star, MapPin, Bed, Bath, Users, Wifi, CheckCircle, Calendar, Clock, Calendar as CalendarIcon, AlertCircle, UserCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,23 @@ import { isLogged } from "@/utils/auth";
 import { format } from 'date-fns';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useAuth } from "@/components/auth-context";
+// Google Maps dynamic import
+import { GoogleMap, Marker, useJsApiLoader } from '@react-google-maps/api';
+
+const containerStyle = { width: '100%', height: '350px', borderRadius: '16px' };
+const center = { lat: 21.035072, lng: 105.841941 };
+
+function LocationMap() {
+  const { isLoaded } = useJsApiLoader({
+    googleMapsApiKey: 'AIzaSyDxxnGWmMuqOIX5u66Ghrh1tAQ6VF-omOc', // Thay bằng API key thật
+  });
+  if (!isLoaded) return <div>Loading map...</div>;
+  return (
+    <GoogleMap mapContainerStyle={containerStyle} center={center} zoom={15}>
+      <Marker position={center} />
+    </GoogleMap>
+  );
+}
 
 function DetailsTab({ pkg, amenities }: { pkg: any; amenities: string[] }) {
   return (
@@ -38,7 +55,86 @@ function CommunityTab() {
   return <div className="text-slate-500 py-8">Community information and resident profiles...</div>;
 }
 function ReviewsTab() {
-  return <div className="text-slate-500 py-8">Guest reviews and ratings...</div>;
+  // Hardcoded data giống ảnh
+  const average = 4.8;
+  const total = 54;
+  const breakdown = [
+    { star: 5, percent: 69 },
+    { star: 4, percent: 24 },
+    { star: 3, percent: 7 },
+    { star: 2, percent: 0 },
+    { star: 1, percent: 0 },
+  ];
+  const reviews = [
+    {
+      avatar: "https://randomuser.me/api/portraits/women/44.jpg",
+      name: "Teagan S",
+      rating: 5.0,
+      provider: "G",
+      content: "I’ve been working and living at this coliving for 3 months now, and I can honestly say it’s been an incredible experience. The views from my room, kitchen, and the roofto",
+    },
+    {
+      avatar: "https://randomuser.me/api/portraits/women/65.jpg",
+      name: "Maddy A",
+      rating: 5.0,
+      provider: "G",
+      content: "Spent the day coworking at the coliving and loved every minute! The staff were incredibly friendly and welcoming, making the whole experience feel fun and personal.",
+    },
+    {
+      avatar: "https://randomuser.me/api/portraits/women/68.jpg",
+      name: "Euniz R",
+      rating: 5.0,
+      provider: "G",
+      content: "Excellent environment and great view of the city. I was able to work and focus. I also enjoyed meeting new people in the",
+    },
+  ];
+  return (
+    <div className="flex flex-col md:flex-row gap-8">
+      {/* Left: summary */}
+      <div className="md:w-1/3 w-full flex flex-col items-center border-r border-slate-200 pr-6">
+        <h2 className="text-2xl font-bold mb-4 w-full text-left">Reviews</h2>
+        <hr className="w-12 border-slate-300 mb-6" />
+        <div className="text-5xl font-bold text-slate-800 mb-2">{average}</div>
+        <div className="flex items-center mb-2">
+          {[...Array(5)].map((_, i) => (
+            <svg key={i} className="w-7 h-7 text-green-500" fill="currentColor" viewBox="0 0 20 20"><polygon points="10,1 12.59,7.36 19.51,7.36 13.97,11.63 16.56,17.99 10,13.72 3.44,17.99 6.03,11.63 0.49,7.36 7.41,7.36" /></svg>
+          ))}
+        </div>
+        <div className="font-semibold text-green-600 text-lg mb-1">Excellent!</div>
+        <div className="text-slate-500 text-sm mb-6">Based on {total} reviews</div>
+        <div className="w-full space-y-2">
+          {breakdown.map(b => (
+            <div key={b.star} className="flex items-center gap-2 text-slate-700 text-sm">
+              <span className="w-4">{b.star}</span>
+              <svg className="w-4 h-4 text-slate-400 inline" fill="currentColor" viewBox="0 0 20 20"><polygon points="10,1 12.59,7.36 19.51,7.36 13.97,11.63 16.56,17.99 10,13.72 3.44,17.99 6.03,11.63 0.49,7.36 7.41,7.36" /></svg>
+              <div className="flex-1 bg-slate-100 rounded h-2 mx-2">
+                <div className="bg-green-400 h-2 rounded" style={{ width: `${b.percent}%` }}></div>
+              </div>
+              <span className="w-8 text-right">{b.percent} %</span>
+            </div>
+          ))}
+        </div>
+      </div>
+      {/* Right: reviews list */}
+      <div className="md:w-2/3 w-full flex flex-col gap-8">
+        {reviews.map((r, idx) => (
+          <div key={idx} className="flex gap-4 items-start border-b border-slate-200 pb-6">
+            <img src={r.avatar} alt={r.name} className="w-14 h-14 rounded-full object-cover border-2 border-slate-200" />
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="font-bold text-lg text-slate-800">{r.name}</span>
+                <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20"><polygon points="10,1 12.59,7.36 19.51,7.36 13.97,11.63 16.56,17.99 10,13.72 3.44,17.99 6.03,11.63 0.49,7.36 7.41,7.36" /></svg>
+                <span className="text-green-600 font-semibold">{r.rating}</span>
+                <span className="ml-1"><img src="https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg" alt="G" className="w-5 h-5 inline" /></span>
+              </div>
+              <div className="text-slate-700 text-base mb-1">{r.content}</div>
+              <button className="text-blue-600 font-semibold text-sm hover:underline">Show more</button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 function FAQTab() {
   return <div className="text-slate-500 py-8">Frequently asked questions...</div>;
@@ -65,6 +161,10 @@ export default function BasicRoomPackageDetail({ id, router }: { id: string, rou
   const { isLoggedIn } = useAuth();
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const detailsRef = useRef<HTMLDivElement>(null);
+  const roomsRef = useRef<HTMLDivElement>(null);
+  const locationRef = useRef<HTMLDivElement>(null);
+  const reviewsRef = useRef<HTMLDivElement>(null);
 
   // Lưu selectedRoom vào localStorage để giữ khi reload
   useEffect(() => {
@@ -291,6 +391,21 @@ export default function BasicRoomPackageDetail({ id, router }: { id: string, rou
     }
   }, []);
 
+  const handleTabClick = (tabKey: string) => {
+    setActiveTab(tabKey);
+    let ref = null;
+    switch (tabKey) {
+      case "details": ref = detailsRef; break;
+      case "rooms": ref = roomsRef; break;
+      case "location": ref = locationRef; break;
+      case "reviews": ref = reviewsRef; break;
+      default: break;
+    }
+    if (ref && ref.current) {
+      ref.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  };
+
   if (loading) return <div className="min-h-screen flex items-center justify-center text-lg">Đang tải dữ liệu...</div>;
   if (!pkg) return <div className="min-h-screen flex items-center justify-center text-lg text-red-500">Không tìm thấy gói basic này.</div>;
 
@@ -356,17 +471,17 @@ export default function BasicRoomPackageDetail({ id, router }: { id: string, rou
             </div>
           </div>
 
-          {/* Tabs bar - move outside card, horizontal nav with underline on active/hover */}
-          <div className="w-full border-b border-slate-200 mb-6">
+          {/* Tabs bar - sticky on scroll */}
+          <div className="w-full border-b border-slate-200 mb-6 sticky top-16 z-30 bg-[#f0fbfd]">
             <nav className="flex flex-row gap-6 px-2 overflow-x-auto">
-              {[{ key: "details", label: "Details" }, { key: "rooms", label: "Rooms" }, { key: "community", label: "Community" }, { key: "location", label: "Location" }, { key: "tour", label: "Tour" }, { key: "reviews", label: "Reviews" }, { key: "faq", label: "FAQ" }].map(tab => (
+              {[{ key: "details", label: "Details" }, { key: "rooms", label: "Rooms" }, { key: "location", label: "Location" }, { key: "reviews", label: "Reviews" }].map(tab => (
                 <button
                   key={tab.key}
                   className={`relative py-3 px-1 text-base font-medium transition-colors duration-150 focus:outline-none
                     ${activeTab === tab.key ? 'text-slate-900 font-semibold' : 'text-slate-500'}
                     hover:text-slate-900`}
                   style={{ background: 'none', border: 'none' }}
-                  onClick={() => setActiveTab(tab.key)}
+                  onClick={() => handleTabClick(tab.key)}
                 >
                   {tab.label}
                   <span className={`absolute left-0 right-0 -bottom-1 h-0.5 rounded bg-orange-500 transition-all duration-200 ${activeTab === tab.key ? 'opacity-100' : 'opacity-0'} pointer-events-none`}></span>
@@ -375,7 +490,7 @@ export default function BasicRoomPackageDetail({ id, router }: { id: string, rou
             </nav>
           </div>
           {/* Card: summary, description, amenities */}
-          <div className="bg-white rounded-2xl shadow border border-slate-200 p-8 mb-10">
+          <div ref={detailsRef} className="bg-white rounded-2xl shadow border border-slate-200 p-8 mb-10">
             {/* Summary row */}
             <div className="flex flex-col md:flex-row md:items-center md:gap-8 gap-4 mb-6">
               <div className="flex items-center gap-2 text-slate-700 text-base"><Bed className="h-5 w-5 mr-1" /> 4 bedrooms</div>
@@ -385,16 +500,10 @@ export default function BasicRoomPackageDetail({ id, router }: { id: string, rou
             </div>
             <hr className="my-4" />
             {/* Description and amenities (reuse DetailsTab) */}
-            {activeTab === "details" && <DetailsTab pkg={pkg} amenities={amenities} />}
-            {activeTab === "community" && <CommunityTab />}
-            {activeTab === "reviews" && <ReviewsTab />}
-            {activeTab === "faq" && <FAQTab />}
+            <DetailsTab pkg={pkg} amenities={amenities} />
           </div>
-
-         
-          {/* Danh sách phòng hiển thị dọc dưới Tabs */}
-          {/* Room options section as a card/box */}
-          <div className="max-w-7xl mx-auto mt-10">
+          {/* Rooms Section */}
+          <div ref={roomsRef} className="max-w-7xl mx-auto mt-10">
             <div className="bg-white/90 rounded-2xl shadow border border-slate-200 p-6 mb-8">
               {/* Header row: title/desc left, button right */}
               <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-4">
@@ -442,8 +551,7 @@ export default function BasicRoomPackageDetail({ id, router }: { id: string, rou
                             <div className="text-slate-600 mb-1">{room.descriptionDetails}</div>
                             <div className="text-slate-500 text-sm mb-1">Tầng: {room.floor} | Mã phòng: {room.roomCode}</div>
                             <div className="text-slate-500 text-sm mb-1">Loại: {room.roomTypeName}</div>
-                          
-                            {/* Trạng thái phòng */}
+                          {/* Trạng thái phòng */}
                             <div className="mt-2 text-sm">
                               {isAvailable && <span className="text-green-600 font-semibold">Available</span>}
                               {availableFrom && <span className="text-orange-600 font-semibold">{status}</span>}
@@ -478,6 +586,19 @@ export default function BasicRoomPackageDetail({ id, router }: { id: string, rou
                 </div>
               </div>
             </div>
+          </div>
+          {/* Location Section */}
+          <div ref={locationRef} className="bg-white rounded-2xl shadow border border-slate-200 p-8 mb-10">
+            <h2 className="text-2xl font-bold mb-4">Location</h2>
+            <hr className="w-12 border-slate-300 mb-6" />
+            
+            <div className="rounded-2xl overflow-hidden border border-slate-200">
+              <LocationMap />
+            </div>
+          </div>
+          {/* Reviews Section */}
+          <div ref={reviewsRef} className="bg-white rounded-2xl shadow border border-slate-200 p-8 mb-10">
+            <ReviewsTab />
           </div>
         </div> {/* Close left column */}
 

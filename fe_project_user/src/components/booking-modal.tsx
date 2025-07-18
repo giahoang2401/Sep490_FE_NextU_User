@@ -21,7 +21,7 @@ interface BookingModalProps {
 }
 
 export function BookingModal({ open, onOpenChange, roomData, selectedDates, duration }: BookingModalProps) {
-  const serviceFee = 500000
+  const serviceFee = 50000
   const total = roomData.price + serviceFee
 
   const handleBookingRequest = () => {
@@ -75,7 +75,7 @@ export function BookingModal({ open, onOpenChange, roomData, selectedDates, dura
             <h4 className="font-semibold text-slate-800">Price Breakdown</h4>
             <div className="space-y-2">
               <div className="flex justify-between text-slate-600">
-                <span>Monthly rent</span>
+                <span>Nightly rate</span>
                 <span>₫{roomData.price.toLocaleString()}</span>
               </div>
               <div className="flex justify-between text-slate-600">
@@ -84,7 +84,7 @@ export function BookingModal({ open, onOpenChange, roomData, selectedDates, dura
               </div>
               <Separator />
               <div className="flex justify-between font-semibold text-slate-800">
-                <span>Total per month</span>
+                <span>Total per night</span>
                 <span>₫{total.toLocaleString()}</span>
               </div>
             </div>

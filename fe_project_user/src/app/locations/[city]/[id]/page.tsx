@@ -5,41 +5,12 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Calendar, Users, Wifi, Bed, Bath, MapPin, Star, Clock, CheckCircle } from "lucide-react"
 import Image from "next/image"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { DatePickerModal } from "@/components/date-picker-modal"
 import { DurationModal } from "@/components/duration-modal"
 import { BookingModal } from "@/components/booking-modal"
-
-const roomData = {
-  name: "Modern Studio in City Center",
-  images: [
-    "/placeholder.svg?height=400&width=600",
-    "/placeholder.svg?height=400&width=600",
-    "/placeholder.svg?height=400&width=600",
-  ],
-  bedrooms: 1,
-  bathrooms: 1,
-  residents: 8,
-  speed: "100 Mbps",
-  area: "25m²",
-  rating: 4.8,
-  reviews: 24,
-  description:
-    "Beautiful modern studio with city views and premium amenities. Located in the heart of the city with easy access to public transportation, restaurants, and entertainment. Perfect for digital nomads and young professionals.",
-  amenities: [
-    "High-speed WiFi",
-    "Fully equipped kitchen",
-    "Laundry facilities",
-    "Gym access",
-    "Rooftop terrace",
-    "Co-working space",
-    "24/7 security",
-    "Cleaning service",
-    "Air conditioning",
-    "Parking available",
-  ],
-  price: 15500000,
-}
+import { roomService, RoomInstance, AccommodationOption, Location } from "@/utils/roomService"
+import { LoadingSpinner } from "@/components/ui/loading-spinner"
 
 export default function RoomDetailPage({ params }: { params: { city: string; id: string } }) {
   const [showDatePicker, setShowDatePicker] = useState(false)
@@ -50,6 +21,77 @@ export default function RoomDetailPage({ params }: { params: { city: string; id:
     moveOut: null,
   })
   const [duration, setDuration] = useState<string>("")
+  const [roomData, setRoomData] = useState<RoomInstance | null>(null)
+  const [accommodationOption, setAccommodationOption] = useState<AccommodationOption | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const fetchRoomData = async () => {
+      try {
+        setLoading(true)
+        // Lấy danh sách locations để tìm location ID
+        const locations = await roomService.getLocations()
+        const targetLocation = locations.find(loc => 
+          loc.name.toLowerCase().includes(params.city.toLowerCase()) ||
+          loc.description.toLowerCase().includes(params.city.toLowerCase())
+        )
+        
+        if (targetLocation) {
+          // Lấy room instances theo location
+          const rooms = await roomService.getRoomInstancesByLocation(targetLocation.id)
+          const currentRoom = rooms.find(room => room.id === params.id)
+          
+          if (currentRoom) {
+            setRoomData(currentRoom)
+            // Lấy thông tin accommodation option
+            try {
+              const accOption = await roomService.getAccommodationOption(currentRoom.accommodationOptionId)
+              setAccommodationOption(accOption)
+            } catch (err) {
+              console.warn('Could not fetch accommodation option details:', err)
+            }
+          } else {
+            setError('Room not found')
+          }
+        } else {
+          setError('Location not found')
+        }
+      } catch (err) {
+        console.error('Error fetching room data:', err)
+        setError('Failed to load room data')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchRoomData()
+  }, [params.city, params.id])
+
+  if (loading) {
+    return (
+      <div className="min-h-screen py-8 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto">
+          <LoadingSpinner message="Loading room details..." />
+        </div>
+      </div>
+    )
+  }
+
+  if (error || !roomData) {
+    return (
+      <div className="min-h-screen py-8 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center py-8">
+            <p className="text-red-600">{error || 'Room not found'}</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Tính toán giá từ accommodation option hoặc sử dụng giá mặc định
+  const price = accommodationOption ? accommodationOption.pricePerNight * 30 : 15500000
 
   return (
     <div className="min-h-screen py-8 px-4 sm:px-6 lg:px-8">
@@ -58,8 +100,8 @@ export default function RoomDetailPage({ params }: { params: { city: string; id:
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8 rounded-2xl overflow-hidden">
           <div className="md:col-span-2">
             <Image
-              src={roomData.images[0] || "/placeholder.svg"}
-              alt={roomData.name}
+              src="/placeholder.svg?height=400&width=600"
+              alt={roomData.roomName}
               width={600}
               height={400}
               className="w-full h-64 md:h-96 object-cover"
@@ -67,15 +109,15 @@ export default function RoomDetailPage({ params }: { params: { city: string; id:
           </div>
           <div className="grid grid-cols-2 md:grid-cols-1 gap-4">
             <Image
-              src={roomData.images[1] || "/placeholder.svg"}
-              alt={roomData.name}
+              src="/placeholder.svg?height=400&width=600"
+              alt={roomData.roomName}
               width={300}
               height={200}
               className="w-full h-32 md:h-48 object-cover rounded-lg"
             />
             <Image
-              src={roomData.images[2] || "/placeholder.svg"}
-              alt={roomData.name}
+              src="/placeholder.svg?height=400&width=600"
+              alt={roomData.roomName}
               width={300}
               height={200}
               className="w-full h-32 md:h-48 object-cover rounded-lg"
@@ -88,16 +130,18 @@ export default function RoomDetailPage({ params }: { params: { city: string; id:
           <div className="lg:col-span-2">
             {/* Header */}
             <div className="mb-6">
-              <h1 className="text-3xl font-bold text-slate-800 mb-2">{roomData.name}</h1>
+              <h1 className="text-3xl font-bold text-slate-800 mb-2">
+                {roomData.roomName} - {roomData.roomTypeName}
+              </h1>
               <div className="flex items-center gap-4 text-slate-600">
                 <div className="flex items-center gap-1">
                   <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                  <span>{roomData.rating}</span>
-                  <span>({roomData.reviews} reviews)</span>
+                  <span>4.8</span>
+                  <span>(24 reviews)</span>
                 </div>
                 <div className="flex items-center gap-1">
                   <MapPin className="h-4 w-4" />
-                  <span>City Center</span>
+                  <span>{roomData.locationName}</span>
                 </div>
               </div>
             </div>
@@ -107,29 +151,52 @@ export default function RoomDetailPage({ params }: { params: { city: string; id:
               <div className="flex items-center gap-2 text-slate-600">
                 <Bed className="h-5 w-5" />
                 <div>
-                  <div className="font-semibold">{roomData.bedrooms}</div>
+                  <div className="font-semibold">1</div>
                   <div className="text-sm">Bedrooms</div>
                 </div>
               </div>
               <div className="flex items-center gap-2 text-slate-600">
                 <Bath className="h-5 w-5" />
                 <div>
-                  <div className="font-semibold">{roomData.bathrooms}</div>
+                  <div className="font-semibold">1</div>
                   <div className="text-sm">Bathrooms</div>
                 </div>
               </div>
               <div className="flex items-center gap-2 text-slate-600">
                 <Users className="h-5 w-5" />
                 <div>
-                  <div className="font-semibold">{roomData.residents}</div>
+                  <div className="font-semibold">{accommodationOption?.capacity || 8}</div>
                   <div className="text-sm">Residents</div>
                 </div>
               </div>
               <div className="flex items-center gap-2 text-slate-600">
                 <Wifi className="h-5 w-5" />
                 <div>
-                  <div className="font-semibold">{roomData.speed}</div>
+                  <div className="font-semibold">100 Mbps</div>
                   <div className="text-sm">Internet</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Room Details */}
+            <div className="mb-6 p-4 bg-slate-50 rounded-lg">
+              <h3 className="text-lg font-semibold text-slate-800 mb-3">Room Information</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <span className="text-sm text-slate-500">Room Code:</span>
+                  <p className="font-medium">{roomData.roomCode}</p>
+                </div>
+                <div>
+                  <span className="text-sm text-slate-500">Floor:</span>
+                  <p className="font-medium">{roomData.floor}</p>
+                </div>
+                <div>
+                  <span className="text-sm text-slate-500">Room Type:</span>
+                  <p className="font-medium">{roomData.roomTypeName}</p>
+                </div>
+                <div>
+                  <span className="text-sm text-slate-500">Status:</span>
+                  <p className="font-medium">{roomData.status}</p>
                 </div>
               </div>
             </div>
@@ -158,13 +225,27 @@ export default function RoomDetailPage({ params }: { params: { city: string; id:
                 <div className="space-y-6">
                   <div>
                     <h3 className="text-xl font-semibold text-slate-800 mb-3">Description</h3>
-                    <p className="text-slate-600 leading-relaxed">{roomData.description}</p>
+                    <p className="text-slate-600 leading-relaxed">{roomData.descriptionDetails}</p>
+                    {accommodationOption && (
+                      <p className="text-slate-600 leading-relaxed mt-3">{accommodationOption.description}</p>
+                    )}
                   </div>
 
                   <div>
                     <h3 className="text-xl font-semibold text-slate-800 mb-4">Amenities</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {roomData.amenities.map((amenity, index) => (
+                      {[
+                        "High-speed WiFi",
+                        "Fully equipped kitchen",
+                        "Laundry facilities",
+                        "Gym access",
+                        "Rooftop terrace",
+                        "Co-working space",
+                        "24/7 security",
+                        "Cleaning service",
+                        "Air conditioning",
+                        "Parking available",
+                      ].map((amenity, index) => (
                         <div key={index} className="flex items-center gap-2">
                           <CheckCircle className="h-5 w-5 text-green-500" />
                           <span className="text-slate-600">{amenity}</span>
@@ -206,7 +287,7 @@ export default function RoomDetailPage({ params }: { params: { city: string; id:
             <Card className="sticky top-24 rounded-2xl border-0 shadow-lg">
               <CardContent className="p-6">
                 <div className="text-center mb-6">
-                  <div className="text-3xl font-bold text-slate-800">₫{roomData.price.toLocaleString()}</div>
+                  <div className="text-3xl font-bold text-slate-800">₫{price.toLocaleString()}</div>
                   <div className="text-slate-600">per month</div>
                 </div>
 
@@ -242,7 +323,7 @@ export default function RoomDetailPage({ params }: { params: { city: string; id:
                 <div className="mt-6 pt-6 border-t border-slate-200">
                   <div className="flex justify-between items-center text-sm text-slate-600 mb-2">
                     <span>Monthly rent</span>
-                    <span>₫{roomData.price.toLocaleString()}</span>
+                    <span>₫{price.toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between items-center text-sm text-slate-600 mb-2">
                     <span>Service fee</span>
@@ -250,7 +331,7 @@ export default function RoomDetailPage({ params }: { params: { city: string; id:
                   </div>
                   <div className="flex justify-between items-center font-semibold text-slate-800 pt-2 border-t border-slate-200">
                     <span>Total</span>
-                    <span>₫{(roomData.price + 500000).toLocaleString()}</span>
+                    <span>₫{(price + 500000).toLocaleString()}</span>
                   </div>
                 </div>
               </CardContent>
@@ -265,7 +346,10 @@ export default function RoomDetailPage({ params }: { params: { city: string; id:
       <BookingModal
         open={showBookingModal}
         onOpenChange={setShowBookingModal}
-        roomData={roomData}
+        roomData={{
+          name: roomData.roomName,
+          price: price,
+        }}
         selectedDates={selectedDates}
         duration={duration}
       />

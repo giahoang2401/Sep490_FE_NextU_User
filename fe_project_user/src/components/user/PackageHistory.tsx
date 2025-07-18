@@ -11,6 +11,7 @@ import { PaymentModal } from "@/components/payment-modal"
 import api from '@/utils/axiosConfig'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import { Dialog as ConfirmDialog, DialogContent as ConfirmDialogContent, DialogHeader as ConfirmDialogHeader, DialogTitle as ConfirmDialogTitle, DialogDescription as ConfirmDialogDescription } from "@/components/ui/dialog"
 
 interface PackageHistory {
   requestId: string;
@@ -47,6 +48,10 @@ export default function PackageList() {
   const [expandedBasicPlans, setExpandedBasicPlans] = useState<{ [id: string]: boolean }>({})
   const [basicPlanDetails, setBasicPlanDetails] = useState<{ [id: string]: any }>({})
   const [loadingBasicDetail, setLoadingBasicDetail] = useState<{ [id: string]: boolean }>({})
+  const [showCancelDialog, setShowCancelDialog] = useState(false)
+  const [canceling, setCanceling] = useState(false)
+  const [cancelSuccess, setCancelSuccess] = useState(false)
+  const [cancelRequestId, setCancelRequestId] = useState<string | null>(null)
 
   useEffect(() => {
     async function fetchHistory() {
@@ -226,6 +231,31 @@ export default function PackageList() {
       case 'pendingpayment': return list.filter(p => p.status?.toLowerCase() === 'pendingpayment')
       case 'completed': return list.filter(p => p.status?.toLowerCase() === 'completed')
       default: return list
+    }
+  }
+
+  const handleCancelRequest = (requestId: string) => {
+    setCancelRequestId(requestId)
+    setShowCancelDialog(true)
+  }
+
+  const confirmCancelRequest = async () => {
+    if (!cancelRequestId) return
+    setCanceling(true)
+    try {
+      await api.delete(`/api/user/memberships/${cancelRequestId}`)
+      setCancelSuccess(true)
+      // Refetch history after cancel
+      setLoading(true)
+      const res = await api.get('/api/user/memberships/history')
+      setPackageRequests(res.data || [])
+      setLoading(false)
+    } catch (err) {
+      alert('Cancel failed!')
+    } finally {
+      setCanceling(false)
+      setShowCancelDialog(false)
+      setCancelRequestId(null)
     }
   }
 
@@ -412,6 +442,9 @@ export default function PackageList() {
                 )}
               </CardContent>
               <CardFooter className="flex justify-end gap-2 pt-0 mt-auto">
+                {(request.status?.toLowerCase() === 'pending' || request.status?.toLowerCase() === 'pendingpayment') && (
+                  <Button variant="destructive" onClick={e => { e.stopPropagation(); handleCancelRequest(request.requestId); }}>Cancel Request</Button>
+                )}
                 <Button variant="outline" onClick={e => { e.stopPropagation(); handleShowDetail(request); }}>View Details</Button>
               </CardFooter>
             </Card>
@@ -570,6 +603,35 @@ export default function PackageList() {
           </DialogHeader>
         </DialogContent>
       </Dialog>
+      {/* Cancel Confirmation Dialog */}
+      <ConfirmDialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
+        <ConfirmDialogContent className="max-w-sm">
+          <ConfirmDialogHeader>
+            <ConfirmDialogTitle>Cancel Request</ConfirmDialogTitle>
+            <ConfirmDialogDescription>
+              Are you sure you want to cancel this request?
+            </ConfirmDialogDescription>
+          </ConfirmDialogHeader>
+          <div className="flex justify-end gap-2 mt-4">
+            <Button variant="outline" onClick={() => setShowCancelDialog(false)} disabled={canceling}>No</Button>
+            <Button variant="destructive" onClick={confirmCancelRequest} disabled={canceling}>{canceling ? 'Cancelling...' : 'Yes'}</Button>
+          </div>
+        </ConfirmDialogContent>
+      </ConfirmDialog>
+      {/* Cancel Success Dialog */}
+      <ConfirmDialog open={cancelSuccess} onOpenChange={setCancelSuccess}>
+        <ConfirmDialogContent className="max-w-sm">
+          <ConfirmDialogHeader>
+            <ConfirmDialogTitle>Cancel successfully</ConfirmDialogTitle>
+            <ConfirmDialogDescription>
+              Your request has been cancelled successfully.
+            </ConfirmDialogDescription>
+          </ConfirmDialogHeader>
+          <div className="flex justify-end mt-4">
+            <Button onClick={() => setCancelSuccess(false)}>OK</Button>
+          </div>
+        </ConfirmDialogContent>
+      </ConfirmDialog>
     </div>
   )
 }

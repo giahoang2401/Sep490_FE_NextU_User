@@ -12,10 +12,11 @@ export default function BasicLifeActivityPackageDetail({ id, router }: { id: str
   const [pkg, setPkg] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [isPaying, setIsPaying] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
   const { isLoggedIn } = useAuth();
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showErrorModal, setShowErrorModal] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string>("");
 
   useEffect(() => {
     async function fetchData() {
@@ -50,7 +51,6 @@ export default function BasicLifeActivityPackageDetail({ id, router }: { id: str
   const handleBuyNow = async () => {
     if (!pkg) return;
     setIsPaying(true);
-    setMessage(null);
     if (!isLoggedIn) {
       setShowAuthModal(true);
       setIsPaying(false);
@@ -78,8 +78,9 @@ export default function BasicLifeActivityPackageDetail({ id, router }: { id: str
         window.location.href = "/profile";
       }
     } catch (err: any) {
-      const errorMsg = err?.response?.data?.message || "Yêu cầu mua gói thất bại. Vui lòng thử lại.";
-      setMessage(errorMsg);
+      const errorMsg = err?.response?.data?.message || "You have already submitted or purchased this package. Please check my booking.";
+      setErrorMessage(errorMsg);
+      setShowErrorModal(true);
     } finally {
       setIsPaying(false);
     }
@@ -94,11 +95,6 @@ export default function BasicLifeActivityPackageDetail({ id, router }: { id: str
 
   return (
     <div className="min-h-screen py-8 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-[#e8f9fc] via-[#f0fbfd] to-[#cce9fa]">
-      {message && (
-        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 bg-white border border-blue-200 shadow-lg rounded-xl px-6 py-3 text-blue-800 font-semibold text-center animate-fade-in">
-          {message}
-        </div>
-      )}
       {showAuthModal && (
         <Dialog open={showAuthModal} onOpenChange={setShowAuthModal}>
           <DialogContent className="max-w-sm p-8 text-center flex flex-col items-center">
@@ -116,6 +112,19 @@ export default function BasicLifeActivityPackageDetail({ id, router }: { id: str
             <DialogTitle className="text-2xl font-bold mb-2">Hoàn thiện hồ sơ</DialogTitle>
             <DialogDescription className="mb-4 text-base text-slate-600">Bạn cần hoàn thiện hồ sơ cá nhân (họ tên, số điện thoại, ngày sinh, giới tính, địa chỉ) để tiếp tục mua gói.</DialogDescription>
             <Button className="mt-2 w-full py-3 text-base font-semibold rounded-full bg-green-600 hover:bg-green-700 transition" onClick={() => { setShowProfileModal(false); router.push("/account/about-me"); }}>Hoàn thiện hồ sơ</Button>
+          </DialogContent>
+        </Dialog>
+      )}
+      {showErrorModal && (
+        <Dialog open={showErrorModal} onOpenChange={setShowErrorModal}>
+          <DialogContent className="max-w-sm p-8 text-center flex flex-col items-center">
+            <AlertCircle className="text-red-500 mb-3" size={48} />
+            <DialogTitle className="text-2xl font-bold mb-2">Purchase Failed</DialogTitle>
+            <DialogDescription className="mb-4 text-base text-slate-600">{errorMessage}</DialogDescription>
+            <div className="flex gap-2 w-full">
+              <Button variant="outline" className="flex-1 py-3 text-base font-semibold rounded-full" onClick={() => setShowErrorModal(false)}>Close</Button>
+              <Button className="flex-1 py-3 text-base font-semibold rounded-full bg-blue-600 hover:bg-blue-700 transition" onClick={() => { setShowErrorModal(false); router.push("/my-bookings"); }}>Check My Booking</Button>
+            </div>
           </DialogContent>
         </Dialog>
       )}

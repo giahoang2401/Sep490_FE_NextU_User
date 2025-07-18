@@ -2,7 +2,7 @@
     "hello": "Hello World",
     "welcome": "Welcome to Next.js",
     "nav": {
-      "rooms": "Rooms",
+      "rooms": "Location",
       "packages": "Packages",
       "ecosystem": "Ecosystem",
       "profile": "Profile",
