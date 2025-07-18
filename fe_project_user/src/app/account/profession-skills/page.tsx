@@ -3,8 +3,14 @@ import { useAccount } from "@/components/account/AccountContext";
 import { useState, useMemo, useEffect } from "react";
 import api from "@/utils/axiosConfig";
 
+const fetchProfile = async () => {
+  const res = await api.get("/api/user/profiles/profileme");
+  return res.data;
+};
+
 export default function ProfessionSkillsPage() {
   const data = useAccount();
+  const setAccount = data.setAccount;
   const [allSkills, setAllSkills] = useState<{id: string, name: string}[]>([]);
   const [selected, setSelected] = useState<string[]>([]); // store selected ids
   const [search, setSearch] = useState("");
@@ -54,23 +60,22 @@ export default function ProfessionSkillsPage() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      await api.patch("/api/user/profiles/updateprofile", {
-        dto: {
-          fullName: data.fullName || "",
-          phone: data.phone || "",
-          gender: data.gender || "",
-          dob: data.dob || "",
-          avatarUrl: data.avatarUrl || "",
-          socialLinks: data.socialLinks || "",
-          address: data.address || "",
-          interests: data.interests || "",
-          skills: data.skills || "",
-          personalityTraitIds: selected, // send array of ids, DO NOT send personalityTraits
-          introduction: data.introduction || "",
-          cvUrl: data.cvUrl || "",
-          note: data.note || "",
-        }
+      const res = await api.patch("/api/user/profiles/updateprofile", {
+        fullName: data.fullName || "",
+        phone: data.phone || "",
+        gender: data.gender || "",
+        dob: data.dob || "",
+        avatarUrl: data.avatarUrl || "",
+        socialLinks: data.socialLinks || "",
+        address: data.address || "",
+        interests: data.interests || "",
+        skills: data.skills || "",
+        personalityTraitIds: selected,
+        introduction: data.introduction || "",
+        cvUrl: data.cvUrl || "",
+        note: data.note || "",
       });
+      if (setAccount) setAccount(res.data.data);
       setMessage("Saved successfully!");
       setTimeout(() => setMessage(""), 2000);
     } catch {

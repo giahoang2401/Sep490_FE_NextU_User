@@ -271,13 +271,13 @@ export default function ComboPackageDetail({ id, router }: { id: string, router:
   };
 
   const handlePayNow = async () => {
-    if (!selectedRoom || !livingBasic || !livingSelectedDates) return;
+    if (!selectedRoom || !livingBasic || !livingSelectedDates || !livingSelectedDates.moveIn) return;
     setIsPaying(true);
     try {
       const res = await api.post("/api/user/memberships/requestMember", {
         packageId: combo.id,
         packageType: "combo",
-        selectedStartDate: new Date().toISOString(),
+        selectedStartDate: livingSelectedDates.moveIn.toISOString(),
         requireBooking: true,
         roomInstanceId: selectedRoom.id,
         messageToStaff: "",

@@ -3,8 +3,14 @@ import React, { useState } from "react";
 import { useAccount } from "@/components/account/AccountContext";
 import api from "@/utils/axiosConfig";
 
+const fetchProfile = async () => {
+  const res = await api.get("/api/user/profiles/profileme");
+  return res.data;
+};
+
 export default function AboutMePage() {
   const data = useAccount();
+  const setAccount = data.setAccount;
   const [fullName, setFullName] = useState(data.fullName || "");
   const [dob, setDob] = useState(data.dob ? data.dob.split('T')[0] : "");
   const [gender, setGender] = useState(data.gender || "");
@@ -16,22 +22,21 @@ export default function AboutMePage() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      await api.patch("/api/user/profiles/updateprofile", {
-        dto: {
-          fullName,
-          phone,
-          gender,
-          dob,
-          avatarUrl: data.avatarUrl || "",
-          socialLinks: data.socialLinks || "",
-          address,
-          interests: data.interests || "",
-          personalityTraits: data.personalityTraits || "",
-          introduction: data.introduction || "",
-          cvUrl: data.cvUrl || "",
-          note: data.note || "",
-        }
+      const res = await api.patch("/api/user/profiles/updateprofile", {
+        fullName,
+        phone,
+        gender,
+        dob,
+        avatarUrl: data.avatarUrl || "",
+        socialLinks: data.socialLinks || "",
+        address,
+        interests: data.interests || "",
+        personalityTraits: data.personalityTraits || "",
+        introduction: data.introduction || "",
+        cvUrl: data.cvUrl || "",
+        note: data.note || "",
       });
+      if (setAccount) setAccount(res.data.data);
       setMessage("Saved successfully!");
       setTimeout(() => setMessage(""), 2000);
     } catch {
