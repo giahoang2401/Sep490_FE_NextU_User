@@ -2,7 +2,7 @@
     "hello": "Hello World",
     "welcome": "Welcome to Next.js",
     "nav": {
-      "rooms": "Location",
+      "rooms": "Properties",
       "packages": "Packages",
       "ecosystem": "Ecosystem",
       "profile": "Profile",
@@ -14,7 +14,7 @@
       "hero": {
         "badge": "Mindful Co-living Ecosystem",
         "title1": "Find Your Co-living Experience with",
-        "title2": "NextU",
+        "title2": "Next Living  ",
         "desc1": "Discover mindful co-living spaces that nurture your",
         "body": "body",
         "mind": "mind",

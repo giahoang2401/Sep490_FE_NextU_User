@@ -142,6 +142,15 @@ import {
       description: "Curated experiences for personal and professional growth",
       services: [
         {
+          name: "Events & Workshops",
+          slug: "events-workshops",
+          description: "Diverse events and workshops for learning and networking",
+          features: ["Yoga classes", "Cooking workshops", "Photography masterclasses", "Networking events"],
+          price: "From ₫250,000/session",
+          image: "/placeholder.svg?height=200&width=300",
+          amenities: [Calendar, Users, Coffee, BookOpen],
+        },
+        {
           name: "Learning Clubs",
           slug: "learning-clubs",
           description: "Skill-sharing communities and workshops",

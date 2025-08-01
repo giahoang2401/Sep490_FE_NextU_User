@@ -25,7 +25,7 @@ export function Navigation() {
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center space-x-8">
             <Link
-              href="/rooms"
+              href="/locations"
               className="text-[#1d2951] hover:text-[#35b9da] transition-colors font-medium"
             >
               {t('nav.rooms')}

@@ -1,0 +1,200 @@
+﻿1. Duyệt và Khám Phá Sự Kiện / Workshop
+Bước 1: Khám phá sự kiện/workshop
+* Trang chủ sự kiện:
+Người dùng truy cập mục Sự kiện/Workshop từ màn hình chính hoặc menu chính của ứng dụng.
+
+* Hiển thị danh mục sinh động, dễ sử dụng, bao gồm:
+
+   * Sức khỏe & Thể chất (Yoga, Thiền, Tập luyện)
+
+   * Văn hoá & Xã hội (Lớp học nấu ăn, Hội thảo ngôn ngữ)
+
+   * Sáng tạo & Nghệ thuật (Vẽ, Nhiếp ảnh, Âm nhạc)
+
+   * Giải trí & Thư giãn (Chiếu phim, Khiêu vũ, Dã ngoại)
+
+   * Khác (Sự kiện doanh nghiệp, đặc biệt)
+
+      * Bộ lọc & tìm kiếm:
+Người dùng có thể lọc theo:
+
+         * Loại sự kiện (Workshop, Lớp học, Retreat…)
+
+         * Địa điểm cụ thể hoặc thành phố
+
+         * Khoảng thời gian (ngày cụ thể, cuối tuần…)
+
+         * Khoảng giá
+
+         * Thời lượng (nửa ngày, cả ngày, cuối tuần…)
+
+         * Trình độ: Cơ bản, Trung cấp, Nâng cao
+
+            * Danh sách sự kiện sau khi lọc hiển thị:
+
+               * Tiêu đề, loại và danh mục sự kiện
+
+               * Ngày và giờ tổ chức
+
+               * Địa điểm và địa chỉ
+
+               * Mô tả ngắn gọn về nội dung
+
+               * Hình ảnh hoặc video giới thiệu
+
+               * Giá vé hoặc gói dịch vụ
+
+               * Xếp hạng sao và số lượng đánh giá (nếu có)
+
+________________
+
+
+2. Xem Chi Tiết Sự Kiện / Workshop
+Bước 2: Trang chi tiết sự kiện
+                  * Tổng quan sự kiện:
+Người dùng nhấn vào sự kiện sẽ được chuyển đến trang chi tiết với:
+
+                     * Tên và danh mục sự kiện
+
+                     * Mô tả chi tiết: mục tiêu, những gì bao gồm (bữa ăn, chỗ ở, phương tiện), trải nghiệm
+
+                     * Thông tin người hướng dẫn: tên và mô tả ngắn
+
+                     * Lịch trình sự kiện: thời gian, hoạt động cụ thể (VD: 9h Yoga, 14h Workshop)
+
+                     * Thông tin địa điểm: ảnh địa điểm, tiện nghi, vị trí
+
+                     * Điều kiện tham gia: độ tuổi, trình độ yêu cầu
+
+                        * Tiện ích bổ sung / Nâng cấp:
+Người dùng có thể chọn thêm:
+
+                           * Buổi riêng, huấn luyện 1-1
+
+                           * Gói bữa ăn, phương tiện đi lại
+
+                              * Chi tiết giá vé:
+
+                                 * Các loại vé (thường, VIP, ưu đãi sớm…)
+
+                                 * Chiết khấu nhóm, đặt sớm, dùng điểm thưởng
+
+                                    * Đánh giá & Nhận xét:
+Hiển thị đánh giá, nhận xét từ người tham gia trước
+
+                                    * Tình trạng đặt chỗ:
+
+                                       * Còn bao nhiêu suất (VD: "Còn 5 chỗ")
+
+                                       * Chọn ngày cụ thể nếu sự kiện có nhiều lịch
+
+________________
+
+
+3. Đăng Ký / Đặt Vé Sự Kiện
+Bước 3: Quá trình đăng ký/đặt chỗ
+                                          * Chọn loại vé:
+Người dùng chọn vé phù hợp (Thường, VIP, Nhóm…)
+
+                                          * Nhập thông tin cá nhân:
+Tên, email, số điện thoại, người liên hệ khẩn cấp, yêu cầu ăn uống (nếu có)
+
+                                          * Thêm người đi cùng (nếu là đặt nhóm)
+
+                                          * Thanh toán:
+
+                                             * Chọn phương thức thanh toán (thẻ, ví điện tử…)
+
+                                             * Hiển thị tổng chi phí (gồm add-on, giảm giá, thuế)
+
+                                                * Xác nhận điều khoản:
+
+                                                   * Đồng ý với chính sách hủy, quy định sự kiện, cam kết an toàn sức khỏe
+
+                                                      * Thanh toán an toàn:
+
+                                                         * Chuyển sang cổng thanh toán
+
+                                                         * Giao dịch diễn ra an toàn, bảo mật
+
+________________
+
+
+4. Xác Nhận & Sau Khi Đặt Chỗ
+Bước 4: Xác nhận và tạo vé
+                                                            * Xác nhận đặt vé:
+Sau khi thanh toán thành công, hiển thị chi tiết vé
+
+                                                            * Gửi xác nhận qua email/SMS:
+Bao gồm vé điện tử (e-ticket), QR code
+
+                                                            * Tích hợp lịch:
+Thêm sự kiện vào Google Calendar, Apple Calendar hoặc lịch trong app
+
+                                                            * Hướng dẫn chuẩn bị:
+
+                                                               * Mang theo gì (thảm yoga, đồ nghề…)
+
+                                                               * Hướng dẫn đến địa điểm, check-in
+
+                                                               * Quy định an toàn sức khỏe (đeo khẩu trang, khai báo y tế…)
+
+________________
+
+
+5. Tham Gia & Check-in
+Bước 5: Ngày diễn ra sự kiện
+                                                                  * Check-in:
+
+                                                                     * Dùng QR code hoặc mã vé để vào sự kiện
+
+                                                                     * Có thể gửi link check-in trực tiếp trên app
+
+                                                                        * Truy cập nội dung sự kiện (với sự kiện online hoặc hybrid):
+
+                                                                           * Truy cập livestream, video, tài liệu
+
+________________
+
+
+6. Sau Sự Kiện
+Bước 6: Phản hồi & gắn kết
+                                                                              * Góp ý:
+
+                                                                                 * Gửi khảo sát đánh giá (nội dung, giảng viên, địa điểm…)
+
+                                                                                    * Gắn kết cộng đồng:
+
+                                                                                       * Mời tham gia nhóm cộng đồng liên quan đến sự kiện
+
+                                                                                       * Chia sẻ ảnh, câu chuyện, trải nghiệm
+
+                                                                                          * Tài liệu & ghi hình (nếu có):
+
+                                                                                             * Truy cập lại video, tài liệu, file trình chiếu
+
+                                                                                                * Chứng nhận tham gia (với sự kiện học tập):
+
+                                                                                                   * Cấp chứng nhận hoàn thành workshop / lớp học
+
+                                                                                                      * Gợi ý sự kiện tiếp theo:
+
+                                                                                                         * Đề xuất các sự kiện phù hợp sở thích
+
+                                                                                                         * Gợi ý đăng ký sớm sự kiện mới
+
+________________
+
+
+Tóm tắt luồng đặt sự kiện/workshop của người dùng
+                                                                                                            1. Khám phá sự kiện: duyệt, tìm kiếm, lọc
+
+                                                                                                            2. Xem chi tiết: mô tả, lịch trình, hướng dẫn
+
+                                                                                                            3. Đăng ký và đặt chỗ: chọn vé, điền thông tin, thanh toán
+
+                                                                                                            4. Xác nhận và nhận vé: xác nhận qua email/SMS, thêm vào lịch
+
+                                                                                                            5. Tham gia sự kiện: check-in, truy cập nội dung
+
+                                                                                                            6. Sau sự kiện: gửi phản hồi, truy cập tài liệu, nhận chứng chỉ, xem sự kiện tương lai

@@ -2,7 +2,7 @@
     "hello": "Xin chào thế giới",
     "welcome": "Chào mừng đến với Next.js",
     "nav": {
-      "rooms": "Địa điểm",
+      "rooms": "Khu nghỉ dưỡng",
       "packages": "Gói dịch vụ",
       "ecosystem": "Hệ sinh thái",
       "profile": "Hồ sơ",
@@ -14,7 +14,7 @@
       "hero": {
         "badge": "Hệ sinh thái Co-living Chánh niệm",
         "title1": "Tìm kiếm trải nghiệm Co-living cùng",
-        "title2": "NextU",
+        "title2": "Next Living",
         "desc1": "Khám phá không gian co-living chánh niệm nuôi dưỡng",
         "body": "thân thể",
         "mind": "tâm trí",

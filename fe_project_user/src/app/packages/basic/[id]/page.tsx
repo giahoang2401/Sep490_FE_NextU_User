@@ -60,7 +60,7 @@ export default function BasicPackageDetailPage() {
   if (!pkg) return <div className="min-h-screen flex items-center justify-center text-lg text-red-500">Không tìm thấy gói basic này.</div>;
 
   // Phân biệt loại booking room dựa vào basicPlanType
-  if (pkg.basicPlanType === "Living") {
+  if (pkg.basicPlanType === "Accommodation") {
     return (
       <BasicRoomPackageDetail id={id} router={router} />
     );

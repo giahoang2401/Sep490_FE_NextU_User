@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { Check, X, MapPin, Star, Clock, Zap, Shield, Award, Sparkles } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation";
+import { Select } from "@/components/ui/select";
 
 interface PackageSectionProps {
   showHero?: boolean;
@@ -26,7 +27,79 @@ export default function PackageSection({
   className = "",
   isPreview = true // Default to true
 }: PackageSectionProps) {
-  const [selectedLocation, setSelectedLocation] = useState<string>("Hà Nội");
+  // --- FILTER STATE ---
+  const [cities, setCities] = useState<any[]>([]);
+  const [locations, setLocations] = useState<any[]>([]);
+  const [properties, setProperties] = useState<any[]>([]);
+  const [selectedCity, setSelectedCity] = useState<string>("");
+  const [selectedLocation, setSelectedLocation] = useState<string>("");
+  const [selectedProperty, setSelectedProperty] = useState<string>("");
+
+  // --- LOAD CITIES ON MOUNT ---
+  useEffect(() => {
+    async function fetchCities() {
+      try {
+        const res = await api.get("/api/user/cities");
+        const data = res.data || res;
+        setCities(data);
+        // KHÔNG tự động setSelectedCity(data[0].id);
+      } catch {
+        setCities([]);
+      }
+    }
+    fetchCities();
+  }, []);
+
+  // --- LOAD LOCATIONS WHEN CITY CHANGES ---
+  useEffect(() => {
+    if (!selectedCity) {
+      setLocations([]);
+      setSelectedLocation("");
+      return;
+    }
+    async function fetchLocations() {
+      try {
+        const res = await api.get(`/api/user/locations/by-city/${selectedCity}`);
+        const data = res.data || res;
+        setLocations(data);
+        // KHÔNG tự động setSelectedLocation(data[0].id);
+        // else setSelectedLocation("");
+      } catch {
+        setLocations([]);
+        setSelectedLocation("");
+      }
+    }
+    fetchLocations();
+    setProperties([]);
+    setSelectedProperty("");
+  }, [selectedCity]);
+
+  // --- LOAD PROPERTIES WHEN LOCATION CHANGES ---
+  useEffect(() => {
+    if (!selectedLocation) {
+      setProperties([]);
+      setSelectedProperty("");
+      return;
+    }
+    async function fetchProperties() {
+      try {
+        const res = await api.get(`/api/user/locations/propertyby-location/${selectedLocation}`);
+        const data = res.data || res;
+        setProperties(data);
+        // KHÔNG tự động setSelectedProperty(data[0].id);
+        // else setSelectedProperty("");
+      } catch {
+        setProperties([]);
+        setSelectedProperty("");
+      }
+    }
+    fetchProperties();
+  }, [selectedLocation]);
+
+
+
+  // --- UI FILTERS ---
+  // Replace old filter UI with 3 select
   const [comboPlans, setComboPlans] = useState<any[]>([]);
   const [basicPlans, setBasicPlans] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -38,9 +111,13 @@ export default function PackageSection({
   const [accommodationInfo, setAccommodationInfo] = useState<{ [accommodationId: string]: any }>({});
   const [loadingAccommodation, setLoadingAccommodation] = useState<{ [accommodationId: string]: boolean }>({});
   const [expandedAccommodations, setExpandedAccommodations] = useState<{ [key: string]: boolean }>({});
-
-  const locations = ["Hà Nội", "Hải Phòng"];
-
+  // --- FILTER BASIC PLANS BY PROPERTY ---
+  const filteredBasic = useMemo(() => {
+    if (!selectedProperty) return [];
+    return Array.isArray(basicPlans)
+      ? basicPlans.filter((b) => b.propertyId === selectedProperty)
+      : [];
+  }, [basicPlans, selectedProperty]);
   useEffect(() => {
     async function fetchData() {
       setLoading(true);
@@ -86,10 +163,6 @@ export default function PackageSection({
     fetchData();
   }, []);
 
-  // Filter packages by selected location
-  const filteredCombos = Array.isArray(comboPlans) ? comboPlans.filter((c) => c.locationName === selectedLocation) : [];
-  const filteredBasic = Array.isArray(basicPlans) ? basicPlans.filter((b) => b.locationName === selectedLocation) : [];
-
   // Get nextService names for each package
   async function fetchNextServiceNames(ids: string[], pkgId: string) {
     if (!ids || ids.length === 0) return;
@@ -111,7 +184,7 @@ export default function PackageSection({
   }
 
   useEffect(() => {
-    const list = showType === 'basic' ? filteredBasic : filteredCombos;
+    const list = showType === 'basic' ? filteredBasic : comboPlans;
     list.forEach(pkg => {
       console.log('DEBUG package:', pkg);
       const ids = pkg.serviceIds || pkg.nextUServiceIds || pkg.nextUserServiceIds || pkg.nextServiceIds || [];
@@ -120,7 +193,7 @@ export default function PackageSection({
       }
     });
     // eslint-disable-next-line
-  }, [showType, filteredBasic, filteredCombos]);
+  }, [showType, filteredBasic, comboPlans]);
 
   async function handleRequestPackage(packageIdToRequest: string, cardId: string, type: 'basic' | 'combo') {
     if (!packageIdToRequest) {
@@ -171,7 +244,7 @@ export default function PackageSection({
   }
 
   // Limit packages if maxPackages is specified, or if isPreview is true, limit to 3
-  const limitedCombos = isPreview ? filteredCombos.slice(0, 3) : (maxPackages ? filteredCombos.slice(0, maxPackages) : filteredCombos);
+  const limitedCombos = isPreview ? comboPlans.slice(0, 3) : (maxPackages ? comboPlans.slice(0, maxPackages) : comboPlans);
   const limitedBasic = isPreview ? filteredBasic.slice(0, 3) : (maxPackages ? filteredBasic.slice(0, maxPackages) : filteredBasic);
 
   // Auto-fetch accommodation info for all basic packages
@@ -276,84 +349,78 @@ export default function PackageSection({
         </section>
       )}
 
-      {/* Compact Selection Controls Section */}
+      {/* Horizontal Cascading Filter Section */}
       {(showLocationFilter || showTypeFilter) && (
-        <section className="py-12 px-4 sm:px-6 lg:px-8 bg-white/50 backdrop-blur-sm">
+        <section className="py-8 px-4 sm:px-6 lg:px-8 bg-white/50 backdrop-blur-sm">
           <div className="max-w-4xl mx-auto">
-            {/* Compact Combined Controls */}
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-6 bg-white/80 rounded-2xl p-6 shadow-xl backdrop-blur-sm">
-              
-              {/* Location Selection - Compact */}
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2 text-slate-700">
-                  <MapPin className="h-5 w-5 text-[#28c4dd]" />
-                  <span className="font-semibold">Location:</span>
-                </div>
-                <div className="flex gap-2">
-                  {locations.map((location) => (
-                    <Button
-                      key={location}
-                      variant={selectedLocation === location ? 'default' : 'outline'}
-                      size="sm"
-                      className={`rounded-full px-6 py-2 font-medium text-sm transition-all duration-300 ${
-                        selectedLocation === location 
-                          ? 'bg-gradient-to-r from-[#28c4dd] to-[#5661b3] text-white shadow-md' 
-                          : 'text-slate-600 hover:text-slate-800 border-slate-300 bg-white hover:bg-slate-50'
-                      }`}
-                      onClick={() => setSelectedLocation(location)}
-                    >
-                      {location}
-                    </Button>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 bg-white/80 rounded-2xl p-6 shadow-xl backdrop-blur-sm">
+              {/* City Select */}
+              <div className="flex flex-col min-w-[160px]">
+                <label className="mb-1 text-sm font-semibold text-slate-700" htmlFor="city-select">City</label>
+                <select
+                  id="city-select"
+                  className="rounded px-3 py-2 border border-slate-300 focus:ring-2 focus:ring-blue-300 focus:outline-none bg-white text-slate-800"
+                  value={selectedCity}
+                  onChange={e => {
+                    setSelectedCity(e.target.value);
+                    setSelectedLocation("");
+                    setSelectedProperty("");
+                  }}
+                  disabled={cities.length === 0}
+                >
+                  <option value="">Select city</option>
+                  {cities.map(city => (
+                    <option key={city.id} value={city.id}>{city.name}</option>
                   ))}
-                </div>
+                </select>
               </div>
-
-              {/* Package Type Selection - Compact */}
-              {showTypeFilter && (
-                <div className="flex items-center gap-4">
-                  <span className="font-semibold text-slate-700">Package Type:</span>
-                  <div className="flex gap-1 bg-slate-100 rounded-full p-1">
-                    <Button
-                      variant={showType === 'basic' ? 'default' : 'ghost'}
-                      size="sm"
-                      className={`rounded-full px-4 py-2 text-sm font-medium transition-all duration-300 ${
-                        showType === 'basic' 
-                          ? 'bg-slate-800 text-white shadow-sm' 
-                          : 'text-slate-600 hover:bg-white hover:text-slate-800'
-                      }`}
-                      onClick={() => setShowType('basic')}
-                    >
-                      <Shield className="h-3 w-3 mr-1" />
-                      Basic
-                    </Button>
-                    <Button
-                      variant={showType === 'combo' ? 'default' : 'ghost'}
-                      size="sm"
-                      className={`rounded-full px-4 py-2 text-sm font-medium transition-all duration-300 ${
-                        showType === 'combo' 
-                          ? 'bg-slate-800 text-white shadow-sm' 
-                          : 'text-slate-600 hover:bg-white hover:text-slate-800'
-                      }`}
-                      onClick={() => setShowType('combo')}
-                    >
-                      <Sparkles className="h-3 w-3 mr-1" />
-                      Combo
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Regional Availability Info */}
-            <div className="mt-6 text-center">
-              <div className="inline-flex items-center gap-2 bg-blue-50 text-blue-700 px-4 py-2 rounded-full text-sm">
-                <MapPin className="h-4 w-4" />
-                <span>
-                  Showing packages available in <strong>{selectedLocation}</strong>
-                  {selectedLocation === "Hải Phòng" && " (Coming Soon)"}
-                </span>
+              {/* Location Select */}
+              <div className="flex flex-col min-w-[180px]">
+                <label className="mb-1 text-sm font-semibold text-slate-700" htmlFor="location-select">Location</label>
+                <select
+                  id="location-select"
+                  className="rounded px-3 py-2 border border-slate-300 focus:ring-2 focus:ring-blue-300 focus:outline-none bg-white text-slate-800"
+                  value={selectedLocation}
+                  onChange={e => {
+                    setSelectedLocation(e.target.value);
+                    setSelectedProperty("");
+                  }}
+                  disabled={!selectedCity || locations.length === 0}
+                >
+                  <option value="">Select location</option>
+                  {locations.map(loc => (
+                    <option key={loc.id} value={loc.id}>{loc.name}</option>
+                  ))}
+                </select>
+              </div>
+              {/* Property Select */}
+              <div className="flex flex-col min-w-[200px]">
+                <label className="mb-1 text-sm font-semibold text-slate-700" htmlFor="property-select">Property</label>
+                <select
+                  id="property-select"
+                  className="rounded px-3 py-2 border border-slate-300 focus:ring-2 focus:ring-blue-300 focus:outline-none bg-white text-slate-800"
+                  value={selectedProperty}
+                  onChange={e => setSelectedProperty(e.target.value)}
+                  disabled={!selectedLocation || properties.length === 0}
+                >
+                  <option value="">Select property</option>
+                  {properties.map(prop => (
+                    <option key={prop.id} value={prop.id}>{prop.name}</option>
+                  ))}
+                </select>
               </div>
             </div>
+            {/* Info */}
+            {selectedCity && selectedLocation && selectedProperty && (
+              <div className="mt-6 text-center">
+                <div className="inline-flex items-center gap-2 bg-blue-50 text-blue-700 px-4 py-2 rounded-full text-sm">
+                  <MapPin className="h-4 w-4" />
+                  <span>
+                    Showing packages for <strong>{properties.find(p => p.id === selectedProperty)?.name || ''}</strong>
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
         </section>
       )}
@@ -361,37 +428,17 @@ export default function PackageSection({
       {/* Packages Section */}
       <section className="py-16 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
-          {/* Empty State for Hai Phong */}
-          {selectedLocation === "Hải Phòng" && (
-            <div className="text-center py-20">
-              <div className="max-w-md mx-auto bg-white/80 backdrop-blur-sm rounded-3xl p-12 shadow-xl">
-                <MapPin className="h-20 w-20 text-[#28c4dd] mx-auto mb-6" />
-                <h3 className="text-3xl font-bold text-slate-800 mb-4">Coming Soon to Hai Phong</h3>
-                <p className="text-slate-600 mb-8 leading-relaxed">
-                  We're excited to bring our mindful co-living experience to Hai Phong. 
-                  Currently, our packages are only available in Hanoi.
-                </p>
-                <Button 
-                  className="rounded-full px-8 py-3 bg-gradient-to-r from-[#28c4dd] to-[#5661b3] text-white hover:shadow-lg transition-all duration-300" 
-                  onClick={() => setSelectedLocation("Hà Nội")}
-                >
-                  Explore Hanoi Packages
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {/* Packages Grid - Only show for Hanoi */}
-          {selectedLocation === "Hà Nội" && (
-          <>
-            {showType === 'basic' && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-8 justify-center">
-                {limitedBasic.length === 0 && (
-                  <div className="w-full text-center py-12">
-                    <div className="text-slate-500 text-lg">No basic packages available for {selectedLocation}.</div>
-                  </div>
-                )}
-                {limitedBasic.map((pkg, idx) => (
+          {/* Only show packages if selectedProperty is set */}
+          {selectedProperty ? (
+            <>
+              {showType === 'basic' && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-8 justify-center">
+                  {limitedBasic.length === 0 && (
+                    <div className="w-full text-center py-12">
+                      <div className="text-slate-500 text-lg">No basic packages available for this property.</div>
+                    </div>
+                  )}
+                  {limitedBasic.map((pkg, idx) => (
                   <Card key={pkg.id} className={`w-full max-w-sm relative overflow-hidden rounded-3xl border-0 shadow-xl hover:shadow-2xl transition-all duration-500 transform hover:-translate-y-2 ${
                     idx === 0 ? 'ring-2 ring-blue-500 scale-105' : ''
                   }`}>
@@ -678,6 +725,8 @@ export default function PackageSection({
               </div>
             )}
           </>
+        ) : (
+          <div className="text-center py-20 text-slate-400">Please select city, location, and property to view packages.</div>
         )}
         </div>
       </section>
