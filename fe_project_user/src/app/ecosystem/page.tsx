@@ -18,6 +18,15 @@ export default function EcosystemPage() {
     setExpandedPillar(expandedPillar === pillar ? null : pillar)
   }
 
+  const handleServiceChange = (service: string) => {
+    if (service === 'events') {
+      // Redirect to events page
+      window.location.href = '/ecosystem/events'
+    } else {
+      setActiveService(service)
+    }
+  }
+
   return (
     <div className="min-h-screen py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto">
@@ -32,8 +41,8 @@ export default function EcosystemPage() {
         </div>
 
         {/* Services Tabs */}
-        <Tabs value={activeService} onValueChange={setActiveService} className="mb-20">
-          <TabsList className="grid w-full grid-cols-5 rounded-2xl bg-white/50 backdrop-blur-sm p-2 mb-8">
+        <Tabs value={activeService} onValueChange={handleServiceChange} className="mb-20">
+          <TabsList className="grid w-full grid-cols-6 rounded-2xl bg-white/50 backdrop-blur-sm p-2 mb-8">
             {Object.entries(detailedServices).map(([key, service]) => (
               <TabsTrigger
                 key={key}
@@ -46,82 +55,87 @@ export default function EcosystemPage() {
             ))}
           </TabsList>
 
-          {Object.entries(detailedServices).map(([key, service]) => (
-            <TabsContent key={key} value={key} className="space-y-8">
-              {/* Service Header */}
-              <div className="text-center mb-12">
-                <div
-                  className={`w-20 h-20 ${service.color} rounded-full flex items-center justify-center mx-auto mb-6 shadow-xl`}
-                >
-                  <service.icon className="h-10 w-10 text-white" />
+          {Object.entries(detailedServices).map(([key, service]) => {
+            // Skip rendering content for events tab since it redirects
+            if (key === 'events') return null
+            
+            return (
+              <TabsContent key={key} value={key} className="space-y-8">
+                {/* Service Header */}
+                <div className="text-center mb-12">
+                  <div
+                    className={`w-20 h-20 ${service.color} rounded-full flex items-center justify-center mx-auto mb-6 shadow-xl`}
+                  >
+                    <service.icon className="h-10 w-10 text-white" />
+                  </div>
+                  <h2 className="text-3xl font-bold text-slate-800 mb-4">{service.title}</h2>
+                  <p className="text-lg text-slate-600 max-w-2xl mx-auto">{service.description}</p>
                 </div>
-                <h2 className="text-3xl font-bold text-slate-800 mb-4">{service.title}</h2>
-                <p className="text-lg text-slate-600 max-w-2xl mx-auto">{service.description}</p>
-              </div>
 
-              {/* Service Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                {service.services.map((item, index) => (
-                  <Card
-                    key={index}
-                    className="overflow-hidden rounded-3xl border-0 shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1 bg-white/80 backdrop-blur-sm"
-                  >
-                    <div className="relative h-48 overflow-hidden">
-                      <Image src={item.image || "/placeholder.svg"} alt={item.name} fill className="object-cover" />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                      <div className="absolute bottom-4 left-4 text-white">
-                        <h3 className="text-lg font-semibold">{item.name}</h3>
-                        <p className="text-sm opacity-90">{item.price}</p>
-                      </div>
-                    </div>
-
-                    <CardContent className="p-6">
-                      <p className="text-slate-600 mb-4">{item.description}</p>
-
-                      {/* Features */}
-                      <div className="space-y-2 mb-4">
-                        {item.features.map((feature, idx) => (
-                          <div key={idx} className="flex items-center gap-2 text-sm text-slate-600">
-                            <CheckCircle className="h-3 w-3 text-green-500" />
-                            {feature}
-                          </div>
-                        ))}
+                {/* Service Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                  {service.services.map((item, index) => (
+                    <Card
+                      key={index}
+                      className="overflow-hidden rounded-3xl border-0 shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1 bg-white/80 backdrop-blur-sm"
+                    >
+                      <div className="relative h-48 overflow-hidden">
+                        <Image src={item.image || "/placeholder.svg"} alt={item.name} fill className="object-cover" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                        <div className="absolute bottom-4 left-4 text-white">
+                          <h3 className="text-lg font-semibold">{item.name}</h3>
+                          <p className="text-sm opacity-90">{item.price}</p>
+                        </div>
                       </div>
 
-                      {/* Amenities */}
-                      <div className="flex gap-2 mb-4">
-                        {item.amenities.map((Amenity, idx) => (
-                          <div key={idx} className="w-8 h-8 bg-slate-100 rounded-full flex items-center justify-center">
-                            <Amenity className="h-4 w-4 text-slate-600" />
-                          </div>
-                        ))}
-                      </div>
+                      <CardContent className="p-6">
+                        <p className="text-slate-600 mb-4">{item.description}</p>
 
-                      <Link href={`/ecosystem/${key}/${item.slug || item.name.toLowerCase().replace(/\s+/g, "-")}`}>
-                        <Button className="w-full rounded-full bg-slate-800 hover:bg-slate-700">
-                          Learn More
-                          <ArrowRight className="ml-2 h-4 w-4" />
-                        </Button>
-                      </Link>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
+                        {/* Features */}
+                        <div className="space-y-2 mb-4">
+                          {item.features.map((feature, idx) => (
+                            <div key={idx} className="flex items-center gap-2 text-sm text-slate-600">
+                              <CheckCircle className="h-3 w-3 text-green-500" />
+                              {feature}
+                            </div>
+                          ))}
+                        </div>
 
-              {/* View All Services Button */}
-              <div className="text-center mt-12">
-                <Link href={`/ecosystem/${key}`}>
-                  <Button
-                    size="lg"
-                    className="rounded-full bg-gradient-to-r from-slate-800 to-slate-700 hover:from-slate-700 hover:to-slate-600 px-8"
-                  >
-                    View All {service.title} Services
-                    <ArrowRight className="ml-2 h-5 w-5" />
-                  </Button>
-                </Link>
-              </div>
-            </TabsContent>
-          ))}
+                        {/* Amenities */}
+                        <div className="flex gap-2 mb-4">
+                          {item.amenities.map((Amenity, idx) => (
+                            <div key={idx} className="w-8 h-8 bg-slate-100 rounded-full flex items-center justify-center">
+                              <Amenity className="h-4 w-4 text-slate-600" />
+                            </div>
+                          ))}
+                        </div>
+
+                        <Link href={`/ecosystem/${key}/${item.slug || item.name.toLowerCase().replace(/\s+/g, "-")}`}>
+                          <Button className="w-full rounded-full bg-slate-800 hover:bg-slate-700">
+                            Learn More
+                            <ArrowRight className="ml-2 h-4 w-4" />
+                          </Button>
+                        </Link>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+
+                {/* View All Services Button */}
+                <div className="text-center mt-12">
+                  <Link href={`/ecosystem/${key}`}>
+                    <Button
+                      size="lg"
+                      className="rounded-full bg-gradient-to-r from-slate-800 to-slate-700 hover:from-slate-700 hover:to-slate-600 px-8"
+                    >
+                      View All {service.title} Services
+                      <ArrowRight className="ml-2 h-5 w-5" />
+                    </Button>
+                  </Link>
+                </div>
+              </TabsContent>
+            )
+          })}
         </Tabs>
 
         {/* Enhanced Three Pillars */}

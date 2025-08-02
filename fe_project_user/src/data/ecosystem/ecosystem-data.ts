@@ -18,6 +18,7 @@ import {
     Leaf,
     Zap,
     Star,
+    Ticket,
   } from "lucide-react"
   
   export const detailedServices = {
@@ -132,6 +133,50 @@ import {
           price: "From ₫1,500,000/month",
           image: "/placeholder.svg?height=200&width=300",
           amenities: [BookOpen, Leaf, Coffee, Users],
+        },
+      ],
+    },
+    events: {
+      icon: Ticket,
+      color: "bg-red-500",
+      title: "EVENTS",
+      description: "Exciting events, workshops, and community gatherings",
+      services: [
+        {
+          name: "Workshops & Classes",
+          slug: "workshops-classes",
+          description: "Skill-building workshops and educational classes",
+          features: ["Expert instructors", "Hands-on learning", "Small groups", "Certificates"],
+          price: "From ₫250,000/session",
+          image: "/placeholder.svg?height=200&width=300",
+          amenities: [BookOpen, Users, Coffee, Star],
+        },
+        {
+          name: "Networking Events",
+          slug: "networking-events",
+          description: "Professional networking and community building",
+          features: ["Industry meetups", "Speed networking", "Panel discussions", "Social mixers"],
+          price: "From ₫150,000/event",
+          image: "/placeholder.svg?height=200&width=300",
+          amenities: [Users, Coffee, Camera, Star],
+        },
+        {
+          name: "Cultural Events",
+          slug: "cultural-events",
+          description: "Cultural celebrations and artistic performances",
+          features: ["Live performances", "Cultural workshops", "Exhibitions", "Festivals"],
+          price: "From ₫100,000/event",
+          image: "/placeholder.svg?height=200&width=300",
+          amenities: [Music, Users, Camera, Coffee],
+        },
+        {
+          name: "Wellness Events",
+          slug: "wellness-events",
+          description: "Mindfulness and wellness focused events",
+          features: ["Meditation sessions", "Yoga workshops", "Wellness talks", "Retreats"],
+          price: "From ₫200,000/session",
+          image: "/placeholder.svg?height=200&width=300",
+          amenities: [Heart, Leaf, Users, Dumbbell],
         },
       ],
     },
