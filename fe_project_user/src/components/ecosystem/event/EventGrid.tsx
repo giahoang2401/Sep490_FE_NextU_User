@@ -70,7 +70,6 @@ export default function EventGrid({
         event.description,
         event.shortDescription,
         event.location,
-        event.instructor.name,
         event.category.name,
         event.level.name
       ].join(' ').toLowerCase()
@@ -97,10 +96,8 @@ export default function EventGrid({
         return a.price - b.price
       case 'price-high':
         return b.price - a.price
-      case 'rating':
-        return b.rating - a.rating
-      case 'popularity':
-        return b.reviewCount - a.reviewCount
+      case 'name':
+        return a.title.localeCompare(b.title)
       default:
         return 0
     }
@@ -167,8 +164,7 @@ export default function EventGrid({
                   <SelectItem value="date">Latest Date</SelectItem>
                   <SelectItem value="price-low">Price: Low to High</SelectItem>
                   <SelectItem value="price-high">Price: High to Low</SelectItem>
-                  <SelectItem value="rating">Highest Rated</SelectItem>
-                  <SelectItem value="popularity">Most Popular</SelectItem>
+                  <SelectItem value="name">Name</SelectItem>
                 </SelectContent>
               </Select>
             </div>

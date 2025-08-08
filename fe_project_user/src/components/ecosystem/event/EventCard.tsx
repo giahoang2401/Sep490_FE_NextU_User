@@ -1,11 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { Calendar, Clock, MapPin, Users, Star, Heart, Tag } from 'lucide-react'
+import { Calendar, Clock, MapPin, Users, Heart, Tag } from 'lucide-react'
 import { Card, CardContent, CardFooter } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { TransformedEvent } from '@/data/ecosystem/event-api'
 import Link from 'next/link'
 
@@ -43,10 +42,6 @@ export default function EventCard({ event, variant = 'default' }: EventCardProps
     return 'text-green-600'
   }
 
-  const formatRating = (rating: number) => {
-    return rating.toFixed(1)
-  }
-
   if (variant === 'compact') {
     return (
       <Link href={`/ecosystem/events/${event.id}`}>
@@ -64,11 +59,6 @@ export default function EventCard({ event, variant = 'default' }: EventCardProps
             {event.featured && (
               <Badge className="absolute top-3 left-3 bg-gradient-to-r from-yellow-400 to-orange-500 text-white border-0">
                 Featured
-              </Badge>
-            )}
-            {event.earlyBirdDiscount && (
-              <Badge className="absolute top-3 right-3 bg-red-500 text-white border-0">
-                -{event.earlyBirdDiscount.percentage}%
               </Badge>
             )}
             <Button
@@ -121,12 +111,7 @@ export default function EventCard({ event, variant = 'default' }: EventCardProps
 
             <div className="flex items-center justify-between mt-4">
               <div className="flex items-center space-x-1">
-                <Star className="h-4 w-4 text-yellow-400 fill-current" />
-                <span className="text-sm font-medium">{formatRating(event.rating)}</span>
-                <span className="text-sm text-gray-500">({event.reviewCount})</span>
-              </div>
-              <div className={`text-sm font-medium ${getAvailabilityColor()}`}>
-                {event.capacity.available} spots left
+                <span className="text-sm font-medium">{event.capacity.available} spots left</span>
               </div>
             </div>
           </CardContent>
@@ -134,11 +119,6 @@ export default function EventCard({ event, variant = 'default' }: EventCardProps
           <CardFooter className="p-4 pt-0">
             <div className="flex items-center justify-between w-full">
               <div>
-                {event.originalPrice && (
-                  <span className="text-sm text-gray-500 line-through mr-2">
-                    {formatPrice(event.originalPrice)}
-                  </span>
-                )}
                 <span className="text-lg font-bold text-blue-600">
                   {formatPrice(event.price)}
                 </span>
@@ -169,11 +149,6 @@ export default function EventCard({ event, variant = 'default' }: EventCardProps
           {event.featured && (
             <Badge className="absolute top-4 left-4 bg-gradient-to-r from-yellow-400 to-orange-500 text-white border-0">
               Featured
-            </Badge>
-          )}
-          {event.earlyBirdDiscount && (
-            <Badge className="absolute top-4 right-4 bg-red-500 text-white border-0">
-              -{event.earlyBirdDiscount.percentage}%
             </Badge>
           )}
           <Button
@@ -208,7 +183,7 @@ export default function EventCard({ event, variant = 'default' }: EventCardProps
           </h3>
 
           <p className="text-gray-600 mb-4 line-clamp-3">
-            {event.description}
+            {event.shortDescription}
           </p>
 
           <div className="space-y-3 text-sm text-gray-500 mb-4">
@@ -232,44 +207,20 @@ export default function EventCard({ event, variant = 'default' }: EventCardProps
             </div>
           </div>
 
-          {/* Instructor */}
-          <div className="flex items-center mb-4 p-3 bg-gray-50 rounded-lg">
-            <Avatar className="h-10 w-10 mr-3">
-              <AvatarImage src={event.instructor.avatar} />
-              <AvatarFallback>{event.instructor.name.charAt(0)}</AvatarFallback>
-            </Avatar>
-            <div>
-              <p className="font-medium text-sm">{event.instructor.name}</p>
-              <p className="text-xs text-gray-500">{event.instructor.expertise[0]}</p>
-            </div>
-          </div>
-
-          {/* Rating */}
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center space-x-1">
-              <Star className="h-4 w-4 text-yellow-400 fill-current" />
-              <span className="font-medium">{formatRating(event.rating)}</span>
-              <span className="text-gray-500">({event.reviewCount} reviews)</span>
-            </div>
-            <div className="flex gap-1">
-              {event.tags.slice(0, 2).map((tag) => (
-                <Badge key={tag} variant="outline" className="text-xs">
-                  <Tag className="h-3 w-3 mr-1" />
-                  {tag}
-                </Badge>
-              ))}
-            </div>
+          {/* Tags */}
+          <div className="flex gap-1 mb-4">
+            {event.tags.slice(0, 2).map((tag) => (
+              <Badge key={tag} variant="outline" className="text-xs">
+                <Tag className="h-3 w-3 mr-1" />
+                {tag}
+              </Badge>
+            ))}
           </div>
         </CardContent>
 
         <CardFooter className="p-6 pt-0">
           <div className="flex items-center justify-between w-full">
             <div>
-              {event.originalPrice && (
-                <span className="text-sm text-gray-500 line-through mr-2">
-                  {formatPrice(event.originalPrice)}
-                </span>
-              )}
               <span className="text-xl font-bold text-blue-600">
                 {formatPrice(event.price)}
               </span>

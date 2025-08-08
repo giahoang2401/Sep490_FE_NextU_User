@@ -97,10 +97,6 @@ export default function EventSection() {
                   <Badge variant="secondary" className="text-xs">
                     {eventCategories[event.category].name}
                   </Badge>
-                  <div className="flex items-center space-x-1">
-                    <Star className="h-3 w-3 text-yellow-400 fill-current" />
-                    <span className="text-xs font-medium">{event.rating}</span>
-                  </div>
                 </div>
 
                 <h3 className="font-semibold text-lg mb-2 line-clamp-2 group-hover:text-blue-600 transition-colors">

@@ -94,11 +94,6 @@ export default function EventEcosystemCard({ event }: EventEcosystemCardProps) {
           </div>
 
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-1">
-              <Star className="h-3 w-3 text-yellow-400 fill-current" />
-              <span className="text-xs font-medium">{formatRating(event.rating)}</span>
-              <span className="text-xs text-gray-500">({event.reviewCount})</span>
-            </div>
             <div className={`text-xs font-medium ${getAvailabilityColor()}`}>
               {event.capacity.available} spots
             </div>
@@ -106,11 +101,6 @@ export default function EventEcosystemCard({ event }: EventEcosystemCardProps) {
 
           <div className="flex items-center justify-between mt-3 pt-3 border-t">
             <div>
-              {event.originalPrice && (
-                <span className="text-xs text-gray-500 line-through mr-1">
-                  {formatPrice(event.originalPrice)}
-                </span>
-              )}
               <span className="text-sm font-bold text-blue-600">
                 {formatPrice(event.price)}
               </span>

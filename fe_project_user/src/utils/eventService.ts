@@ -54,15 +54,24 @@ export function transformApiEvent(apiEvent: ApiEvent): TransformedEvent {
   
   // Get the first schedule for date/time info
   const firstSchedule = apiEvent.schedules[0]
-  const startDate = firstSchedule ? new Date(firstSchedule.startDate) : new Date()
-  const endDate = firstSchedule ? new Date(firstSchedule.endDate) : new Date()
+  const startDate = firstSchedule ? new Date(firstSchedule.startTime) : new Date()
+  const endDate = firstSchedule ? new Date(firstSchedule.endTime) : new Date()
   
   // Calculate duration
   const durationMs = endDate.getTime() - startDate.getTime()
   const durationHours = Math.ceil(durationMs / (1000 * 60 * 60))
   
-  // Get the first ticket type for pricing (lowest price)
-  const sortedTickets = [...apiEvent.ticketTypes].sort((a, b) => a.price - b.price)
+  // Get all ticket types from all schedules and find the lowest price
+  const allTicketTypes = apiEvent.schedules.flatMap(schedule => schedule.ticketTypes)
+  // Deduplicate ticket types based on ID
+  const uniqueTicketTypes = allTicketTypes.reduce((acc, ticket) => {
+    const existingTicket = acc.find(t => t.id === ticket.id)
+    if (!existingTicket) {
+      acc.push(ticket)
+    }
+    return acc
+  }, [] as typeof allTicketTypes)
+  const sortedTickets = [...uniqueTicketTypes].sort((a, b) => a.price - b.price)
   const firstTicket = sortedTickets[0]
   const price = firstTicket ? firstTicket.price : 0
   
@@ -87,18 +96,18 @@ export function transformApiEvent(apiEvent: ApiEvent): TransformedEvent {
     isPublished: apiEvent.isPublished,
     schedules: apiEvent.schedules.map(schedule => ({
       id: schedule.id,
-      startDate: schedule.startDate,
-      endDate: schedule.endDate,
-      repeatPattern: schedule.repeatPattern,
-      time: new Date(schedule.startDate).toLocaleTimeString('en-US', { 
+      startTime: schedule.startTime,
+      endTime: schedule.endTime,
+      ticketTypes: schedule.ticketTypes,
+      time: new Date(schedule.startTime).toLocaleTimeString('en-US', { 
         hour: '2-digit', 
         minute: '2-digit' 
       }),
       activity: 'Session',
       description: 'Main event session',
-      duration: Math.ceil((new Date(schedule.endDate).getTime() - new Date(schedule.startDate).getTime()) / (1000 * 60))
+      duration: Math.ceil((new Date(schedule.endTime).getTime() - new Date(schedule.startTime).getTime()) / (1000 * 60))
     })),
-    ticketTypes: apiEvent.ticketTypes,
+    ticketTypes: uniqueTicketTypes,
     addOns: apiEvent.addOns.map(addon => ({
       ...addon,
       type: 'equipment' as const

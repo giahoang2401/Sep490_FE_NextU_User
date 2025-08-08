@@ -10,16 +10,15 @@ export interface ApiEvent {
   levelName: string
   isPublished: boolean
   schedules: ApiEventSchedule[]
-  ticketTypes: ApiTicketType[]
   addOns: ApiAddOn[]
   locations: ApiLocation[]
 }
 
 export interface ApiEventSchedule {
   id: string
-  startDate: string
-  endDate: string
-  repeatPattern: string | null
+  startTime: string
+  endTime: string
+  ticketTypes: ApiTicketType[]
 }
 
 export interface ApiTicketType {
@@ -32,7 +31,7 @@ export interface ApiTicketType {
 export interface ApiAddOn {
   id: string
   name: string
-  description: string
+  description: string | null
   price: number
 }
 
@@ -124,9 +123,9 @@ export interface TransformedEvent {
 
 export interface TransformedEventSchedule {
   id: string
-  startDate: string
-  endDate: string
-  repeatPattern: string | null
+  startTime: string
+  endTime: string
+  ticketTypes: TransformedTicketType[]
   // Computed fields
   time: string
   activity: string
@@ -144,7 +143,7 @@ export interface TransformedTicketType {
 export interface TransformedAddOn {
   id: string
   name: string
-  description: string
+  description: string | null
   price: number
   type: 'private' | 'meal' | 'transport' | 'equipment'
 }
