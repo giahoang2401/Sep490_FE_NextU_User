@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { 
   Calendar, 
   Clock, 
@@ -92,7 +93,26 @@ interface SelectedRecurringTicket {
   price: number
 }
 
+interface TicketAvailability {
+  ticketTypeId: string
+  scheduleId: string
+  ticketName: string
+  totalQuantity: number
+  sold: number
+  remaining: number
+}
+
+interface TicketQuota {
+  ticketTypeId: string
+  maxPerUser: number
+  confirmedByUser: number
+  pendingByUser: number
+  remainingForUser: number
+  earlyDay: string
+}
+
 export default function EventDetail({ event, onBackClick }: EventDetailProps) {
+  const router = useRouter()
   const [isLiked, setIsLiked] = useState(false)
   const [activeTab, setActiveTab] = useState('overview')
   const [selectedSchedule, setSelectedSchedule] = useState<TransformedEventSchedule | null>(null)
@@ -108,6 +128,17 @@ export default function EventDetail({ event, onBackClick }: EventDetailProps) {
   // States for Payment Summary Modal
   const [showPaymentSummary, setShowPaymentSummary] = useState(false)
   const [bookingPurchaseId, setBookingPurchaseId] = useState<string>('')
+  
+  // State for ticket availability
+  const [ticketAvailability, setTicketAvailability] = useState<Record<string, TicketAvailability>>({})
+  const [loadingAvailability, setLoadingAvailability] = useState<Record<string, boolean>>({})
+  
+  // State for ticket quota
+  const [ticketQuota, setTicketQuota] = useState<Record<string, TicketQuota>>({})
+  const [loadingQuota, setLoadingQuota] = useState<Record<string, boolean>>({})
+  const [quotaWarning, setQuotaWarning] = useState<string>('')
+  const [showPendingModal, setShowPendingModal] = useState(false)
+  const [pendingTicketName, setPendingTicketName] = useState<string>('')
 
   // Tìm lịch gần nhất sắp tới
   const getUpcomingSchedules = () => {
@@ -172,6 +203,14 @@ export default function EventDetail({ event, onBackClick }: EventDetailProps) {
       setSelectedSchedule(allSchedules[allSchedules.length - 1])
     }
   }, [event])
+
+  // Fetch ticket availability and quota when schedule changes
+  useEffect(() => {
+    if (selectedSchedule && !isScheduleExpired(selectedSchedule)) {
+      fetchAllTicketAvailability()
+      fetchAllTicketQuota()
+    }
+  }, [selectedSchedule])
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -246,30 +285,77 @@ export default function EventDetail({ event, onBackClick }: EventDetailProps) {
     }
   ]
 
-  const handleTicketSelect = (ticketId: string) => {
+  const handleTicketSelect = async (ticketId: string) => {
     if (!selectedSchedule) return
     
+    // Clear any previous warnings
+    setQuotaWarning('')
+    
     const ticket = selectedSchedule.ticketTypes.find(t => t.id === ticketId)
-    if (ticket && ticket.totalQuantity > 0) {
-      setSelectedTicket({
-        id: ticket.id,
-        name: ticket.name,
-        price: ticket.price,
-        quantity: 1,
-        maxQuantity: ticket.totalQuantity
-      })
+    const availability = ticketAvailability[ticketId]
+    
+    if (ticket) {
+      // Fetch quota data if not already loaded
+      if (!ticketQuota[ticketId]) {
+        await fetchTicketQuota(ticketId)
+      }
+      
+      // Check quota restrictions
+      const quotaCheck = checkQuotaRestrictions(ticketId)
+      
+      if (quotaCheck.showPopup) {
+        // Show detailed popup for pending requests
+        setPendingTicketName(ticket.name)
+        setShowPendingModal(true)
+        return
+      }
+      
+      if (!quotaCheck.canSelect) {
+        return
+      }
+      
+      // Use API availability data if available, otherwise fall back to event data
+      const availableQuantity = availability ? availability.remaining : ticket.totalQuantity
+      const quota = ticketQuota[ticketId]
+      
+      // Determine max quantity considering both availability and quota
+      let maxQuantity = availableQuantity
+      if (quota && quota.remainingForUser < availableQuantity) {
+        maxQuantity = quota.remainingForUser
+      }
+      
+      if (maxQuantity > 0) {
+        setSelectedTicket({
+          id: ticket.id,
+          name: ticket.name,
+          price: ticket.price,
+          quantity: 1,
+          maxQuantity: maxQuantity
+        })
+      }
     }
   }
 
   const handleTicketQuantityChange = (quantity: number) => {
     if (selectedTicket) {
+      // Clear previous warning
+      setQuotaWarning('')
+      
       let newQuantity = quantity
       
-      // Validate quantity
-      if (newQuantity <= 0) {
-        newQuantity = 1
-      } else if (newQuantity > selectedTicket.maxQuantity) {
-        newQuantity = selectedTicket.maxQuantity
+      // Validate against quota first
+      const quotaValidation = validateQuantityAgainstQuota(selectedTicket.id, quantity)
+      
+      if (!quotaValidation.isValid) {
+        setQuotaWarning(quotaValidation.message)
+        newQuantity = quotaValidation.maxAllowed
+      } else {
+        // Validate quantity against availability
+        if (newQuantity <= 0) {
+          newQuantity = 1
+        } else if (newQuantity > selectedTicket.maxQuantity) {
+          newQuantity = selectedTicket.maxQuantity
+        }
       }
       
       setSelectedTicket({
@@ -282,19 +368,7 @@ export default function EventDetail({ event, onBackClick }: EventDetailProps) {
   const handleTicketQuantityInput = (value: string) => {
     if (selectedTicket) {
       const quantity = parseInt(value) || 0
-      let newQuantity = quantity
-      
-      // Validate quantity
-      if (newQuantity <= 0) {
-        newQuantity = 1
-      } else if (newQuantity > selectedTicket.maxQuantity) {
-        newQuantity = selectedTicket.maxQuantity
-      }
-      
-      setSelectedTicket({
-        ...selectedTicket,
-        quantity: newQuantity
-      })
+      handleTicketQuantityChange(quantity)
     }
   }
 
@@ -369,6 +443,146 @@ export default function EventDetail({ event, onBackClick }: EventDetailProps) {
     return ticketPrice + addOnsPrice
   }
 
+  // Function to fetch ticket availability
+  const fetchTicketAvailability = async (ticketTypeId: string) => {
+    try {
+      setLoadingAvailability(prev => ({ ...prev, [ticketTypeId]: true }))
+      
+      const response = await api.get(`/api/bookings/tickets/${ticketTypeId}/availability`)
+      
+      if (response.status === 200) {
+        const availabilityData: TicketAvailability = response.data
+        setTicketAvailability(prev => ({
+          ...prev,
+          [ticketTypeId]: availabilityData
+        }))
+      }
+    } catch (error: any) {
+      console.error('Error fetching ticket availability:', error)
+      // Don't show error notification for availability fetch failures
+      // as this is non-critical functionality
+    } finally {
+      setLoadingAvailability(prev => ({ ...prev, [ticketTypeId]: false }))
+    }
+  }
+
+  // Function to fetch availability for all tickets in current schedule
+  const fetchAllTicketAvailability = async () => {
+    if (!selectedSchedule) return
+    
+    const promises = selectedSchedule.ticketTypes.map(ticket => 
+      fetchTicketAvailability(ticket.id)
+    )
+    
+    await Promise.all(promises)
+  }
+
+  // Function to fetch ticket quota for a specific ticket
+  const fetchTicketQuota = async (ticketTypeId: string) => {
+    try {
+      setLoadingQuota(prev => ({ ...prev, [ticketTypeId]: true }))
+      
+      const response = await api.get(`/api/user/event/quota/${ticketTypeId}`)
+      
+      if (response.status === 200) {
+        const quotaData: TicketQuota = response.data
+        setTicketQuota(prev => ({
+          ...prev,
+          [ticketTypeId]: quotaData
+        }))
+        return quotaData
+      }
+    } catch (error: any) {
+      console.error('Error fetching ticket quota:', error)
+      // Don't show error notification for quota fetch failures
+      // as this is non-critical functionality
+    } finally {
+      setLoadingQuota(prev => ({ ...prev, [ticketTypeId]: false }))
+    }
+    return null
+  }
+
+  // Function to fetch quota for all tickets in current schedule
+  const fetchAllTicketQuota = async () => {
+    if (!selectedSchedule) return
+    
+    const promises = selectedSchedule.ticketTypes.map(ticket => 
+      fetchTicketQuota(ticket.id)
+    )
+    
+    await Promise.all(promises)
+  }
+
+  // Calculate total available spots from ticket availability API
+  const calculateAvailableSpots = () => {
+    if (!selectedSchedule) return { available: 0, total: 0 }
+    
+    let totalAvailable = 0
+    let totalCapacity = 0
+    
+    selectedSchedule.ticketTypes.forEach(ticket => {
+      const availability = ticketAvailability[ticket.id]
+      if (availability) {
+        totalAvailable += availability.remaining
+        totalCapacity += availability.totalQuantity
+      } else {
+        // Fallback to event data if availability not loaded
+        totalAvailable += ticket.totalQuantity
+        totalCapacity += ticket.totalQuantity
+      }
+    })
+    
+    return { available: totalAvailable, total: totalCapacity }
+  }
+
+  // Quota validation functions
+  const checkQuotaRestrictions = (ticketTypeId: string) => {
+    const quota = ticketQuota[ticketTypeId]
+    if (!quota) return { canSelect: true, message: '', canSelectWithWarning: true }
+
+    // Check if user has reached max limit
+    if (quota.confirmedByUser >= quota.maxPerUser) {
+      return { 
+        canSelect: false, 
+        canSelectWithWarning: false,
+        message: 'You have reached the maximum limit for this ticket' 
+      }
+    }
+
+    // Check if user has pending purchases - allow selection but show warning
+    if (quota.pendingByUser > 0) {
+      return { 
+        canSelect: true,
+        canSelectWithWarning: true,
+        message: 'You have pending requests for this ticket',
+        showPopup: true 
+      }
+    }
+
+    return { canSelect: true, canSelectWithWarning: true, message: '' }
+  }
+
+  const validateQuantityAgainstQuota = (ticketTypeId: string, requestedQuantity: number) => {
+    const quota = ticketQuota[ticketTypeId]
+    if (!quota) return { isValid: true, message: '', maxAllowed: 999 }
+
+    const maxAllowed = quota.remainingForUser
+    
+    if (requestedQuantity > maxAllowed) {
+      const message = maxAllowed === 1 
+        ? 'You can only purchase 1 more ticket'
+        : `You can only purchase ${maxAllowed} more tickets`
+      
+      return { 
+        isValid: false, 
+        message: message,
+        maxAllowed: maxAllowed 
+      }
+    }
+
+    return { isValid: true, message: '', maxAllowed: maxAllowed }
+  }
+
   const handleRegisterNow = async () => {
     if (!selectedSchedule) {
       Notify.failure('Please select a schedule first')
@@ -408,6 +622,11 @@ export default function EventDetail({ event, onBackClick }: EventDetailProps) {
           // Show payment summary modal with the purchase ID
           setBookingPurchaseId(responseData.data.id)
           setShowPaymentSummary(true)
+          
+          // Refresh ticket availability to reflect updated remaining tickets
+          if (selectedTicket) {
+            fetchTicketAvailability(selectedTicket.id)
+          }
           
           // Clear selected items
           setSelectedTicket(null)
@@ -508,6 +727,12 @@ export default function EventDetail({ event, onBackClick }: EventDetailProps) {
           // Show payment summary modal with the purchase ID
           setBookingPurchaseId(responseData.data.id)
           setShowPaymentSummary(true)
+          
+          // Refresh availability for all selected tickets
+          selectedRecurringTickets.forEach(ticket => {
+            fetchTicketAvailability(ticket.ticketTypeId)
+          })
+          
           handleCloseRecurringModal()
         } else {
           Notify.failure('Booking failed. Please try again.')
@@ -624,10 +849,20 @@ export default function EventDetail({ event, onBackClick }: EventDetailProps) {
               <div className="flex items-center">
                 <Users className="h-5 w-5 text-gray-500 mr-3" />
                 <div>
-                  <p className="font-medium">{event.capacity.available}/{event.capacity.total} spots</p>
-                  <p className={`text-sm ${getAvailabilityColor()}`}>
-                    {event.capacity.available} spots available
-                  </p>
+                  {(() => {
+                    const spots = calculateAvailableSpots()
+                    const percentage = spots.total > 0 ? (spots.available / spots.total) * 100 : 0
+                    const spotColor = percentage <= 20 ? 'text-red-600' : percentage <= 50 ? 'text-orange-600' : 'text-green-600'
+                    
+                    return (
+                      <>
+                        <p className="font-medium">{spots.available}/{spots.total} spots</p>
+                        <p className={`text-sm ${spotColor}`}>
+                          {spots.available} spots available
+                        </p>
+                      </>
+                    )
+                  })()}
                 </div>
               </div>
             </div>
@@ -1013,13 +1248,24 @@ export default function EventDetail({ event, onBackClick }: EventDetailProps) {
                       <RadioGroup value={selectedTicket?.id || ''} onValueChange={handleTicketSelect}>
                         <div className="space-y-3">
                           {selectedSchedule.ticketTypes.map((ticket) => {
-                            const isSoldOut = ticket.totalQuantity <= 0
+                            const availability = ticketAvailability[ticket.id]
+                            const quota = ticketQuota[ticket.id]
+                            const isLoadingThisTicket = loadingAvailability[ticket.id] || loadingQuota[ticket.id]
+                            
+                            // Use API data if available, otherwise fall back to event data
+                            const remaining = availability ? availability.remaining : ticket.totalQuantity
+                            const totalQuantity = availability ? availability.totalQuantity : ticket.totalQuantity
+                            
+                            // Check quota restrictions
+                            const quotaCheck = checkQuotaRestrictions(ticket.id)
+                            const isSoldOut = remaining <= 0 || !quotaCheck.canSelectWithWarning
+                            
                             return (
-                              <div key={ticket.id} className={`flex items-center space-x-3 p-3 border rounded-lg ${isSoldOut ? 'opacity-50 bg-gray-50' : ''}`}>
+                              <div key={ticket.id} className={`flex items-center space-x-3 p-3 border rounded-lg transition-all ${isSoldOut ? 'opacity-50 bg-gray-50' : 'hover:shadow-sm'}`}>
                                 <RadioGroupItem 
                                   value={ticket.id} 
                                   id={ticket.id} 
-                                  disabled={isSoldOut}
+                                  disabled={isSoldOut || isLoadingThisTicket}
                                 />
                                 <div className="flex-1">
                                   <Label 
@@ -1028,11 +1274,49 @@ export default function EventDetail({ event, onBackClick }: EventDetailProps) {
                                   >
                                     {ticket.name}
                                   </Label>
-                                  <p className="text-sm text-gray-600">
-                                    Quantity: {ticket.totalQuantity > 0 ? ticket.totalQuantity : '0'}
-                                  </p>
-                                  {isSoldOut && (
-                                    <p className="text-sm text-red-500 mt-1">Vé đã bán hết</p>
+                                  
+                                  {isLoadingThisTicket ? (
+                                    <div className="flex items-center space-x-2 mt-1">
+                                      <Loader2 className="h-3 w-3 animate-spin" />
+                                      <span className="text-xs text-gray-500">Loading...</span>
+                                    </div>
+                                  ) : (
+                                    <div className="space-y-1 mt-1">
+                                      <p className={`text-sm ${remaining > 0 ? 'text-green-600' : 'text-red-500'}`}>
+                                        <span className="font-medium">{remaining}/{totalQuantity}</span>
+                                      </p>
+                                      
+                                      {/* Quota restriction message for max reached */}
+                                      {!quotaCheck.canSelectWithWarning && (
+                                        <p className="text-xs text-red-500 font-medium">
+                                          🚫 {quotaCheck.message}
+                                        </p>
+                                      )}
+                                      
+                                      {/* Pending request warning */}
+                                      {quotaCheck.showPopup && (
+                                        <p className="text-xs text-orange-600 font-medium">
+                                          ⚠️ You have pending requests
+                                        </p>
+                                      )}
+                                      
+                                      {/* Quota info for valid tickets */}
+                                      {quotaCheck.canSelectWithWarning && quota && !quotaCheck.showPopup && (
+                                        <p className="text-xs text-blue-600">
+                                          Max per user: {quota.remainingForUser}/{quota.maxPerUser}
+                                        </p>
+                                      )}
+                                      
+                                      {remaining > 0 && remaining <= 5 && quotaCheck.canSelectWithWarning && (
+                                        <p className="text-xs text-orange-600 font-medium">
+                                          ⚠️ Only {remaining} tickets left!
+                                        </p>
+                                      )}
+                                      
+                                      {remaining <= 0 && (
+                                        <p className="text-sm text-red-500 font-medium">🚫 Sold out</p>
+                                      )}
+                                    </div>
                                   )}
                                 </div>
                                 <div className="text-right">
@@ -1076,6 +1360,13 @@ export default function EventDetail({ event, onBackClick }: EventDetailProps) {
                               </Button>
                             </div>
                           </div>
+                          
+                          {/* Quota warning display */}
+                          {quotaWarning && (
+                            <div className="mt-2 p-2 bg-orange-50 border border-orange-200 rounded text-xs text-orange-700">
+                              ⚠️ {quotaWarning}
+                            </div>
+                          )}
                         </div>
                       )}
                     </>
@@ -1272,9 +1563,17 @@ export default function EventDetail({ event, onBackClick }: EventDetailProps) {
 
                   <div className="flex justify-between items-center">
                     <span className="text-gray-600">Available spots</span>
-                    <span className={`font-medium ${getAvailabilityColor()}`}>
-                      {event.capacity.available} left
-                    </span>
+                    {(() => {
+                      const spots = calculateAvailableSpots()
+                      const percentage = spots.total > 0 ? (spots.available / spots.total) * 100 : 0
+                      const spotColor = percentage <= 20 ? 'text-red-600' : percentage <= 50 ? 'text-orange-600' : 'text-green-600'
+                      
+                      return (
+                        <span className={`font-medium ${spotColor}`}>
+                          {spots.available} left
+                        </span>
+                      )
+                    })()}
                   </div>
                 </div>
               </CardContent>
@@ -1351,13 +1650,22 @@ export default function EventDetail({ event, onBackClick }: EventDetailProps) {
                         >
                           <div className="space-y-2">
                             {schedule.ticketTypes.map((ticket) => {
-                              const isSoldOut = ticket.totalQuantity <= 0
+                              const availability = ticketAvailability[ticket.id]
+                              const isLoadingThisTicket = loadingAvailability[ticket.id]
+                              
+                              // Use API data if available, otherwise fall back to event data
+                              const remaining = availability ? availability.remaining : ticket.totalQuantity
+                              const totalQuantity = availability ? availability.totalQuantity : ticket.totalQuantity
+                              const sold = availability ? availability.sold : 0
+                              
+                              const isSoldOut = remaining <= 0
+                              
                               return (
-                                <div key={ticket.id} className={`flex items-center space-x-3 p-3 border rounded-lg ${isSoldOut ? 'opacity-50 bg-gray-50' : ''}`}>
+                                <div key={ticket.id} className={`flex items-center space-x-3 p-3 border rounded-lg transition-all ${isSoldOut ? 'opacity-50 bg-gray-50' : 'hover:shadow-sm'}`}>
                                   <RadioGroupItem 
                                     value={ticket.id} 
                                     id={`recurring-${schedule.id}-${ticket.id}`} 
-                                    disabled={isSoldOut}
+                                    disabled={isSoldOut || isLoadingThisTicket}
                                   />
                                   <div className="flex-1">
                                     <Label 
@@ -1366,11 +1674,28 @@ export default function EventDetail({ event, onBackClick }: EventDetailProps) {
                                     >
                                       {ticket.name}
                                     </Label>
-                                    <p className="text-sm text-gray-600">
-                                      Available: {ticket.totalQuantity > 0 ? ticket.totalQuantity : '0'}
-                                    </p>
-                                    {isSoldOut && (
-                                      <p className="text-sm text-red-500 mt-1">Sold out</p>
+                                    
+                                    {isLoadingThisTicket ? (
+                                      <div className="flex items-center space-x-2 mt-1">
+                                        <Loader2 className="h-3 w-3 animate-spin" />
+                                        <span className="text-xs text-gray-500">Loading...</span>
+                                      </div>
+                                    ) : (
+                                      <div className="space-y-1 mt-1">
+                                        <p className={`text-sm ${remaining > 0 ? 'text-green-600' : 'text-red-500'}`}>
+                                          <span className="font-medium">{remaining}/{totalQuantity}</span>
+                                        </p>
+                                        
+                                        {remaining > 0 && remaining <= 5 && (
+                                          <p className="text-xs text-orange-600 font-medium">
+                                            ⚠️ Only {remaining} left!
+                                          </p>
+                                        )}
+                                        
+                                        {isSoldOut && (
+                                          <p className="text-sm text-red-500 font-medium">🚫 Sold out</p>
+                                        )}
+                                      </div>
                                     )}
                                   </div>
                                   <div className="text-right">
@@ -1503,6 +1828,50 @@ export default function EventDetail({ event, onBackClick }: EventDetailProps) {
               ) : (
                 'Book Full Schedule'
               )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Pending Request Modal */}
+      <Dialog open={showPendingModal} onOpenChange={setShowPendingModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Pending Request Found</DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="p-4 bg-orange-50 border border-orange-200 rounded-lg">
+              <div className="flex items-start space-x-3">
+                <AlertCircle className="h-5 w-5 text-orange-600 mt-0.5 flex-shrink-0" />
+                <div className="flex-1">
+                  <h4 className="font-semibold text-orange-900 mb-2">
+                    You have pending requests for "{pendingTicketName}"
+                  </h4>
+                  <p className="text-sm text-orange-800 mb-3">
+                    Please visit My Bookings to cancel or complete your pending request to continue purchasing.
+                  </p>
+                  <Button 
+                    size="sm"
+                    onClick={() => {
+                      setShowPendingModal(false)
+                      router.push('/my-bookings')
+                    }}
+                    className="bg-orange-600 hover:bg-orange-700 text-white"
+                  >
+                    Go to My Bookings
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setShowPendingModal(false)}
+            >
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>
