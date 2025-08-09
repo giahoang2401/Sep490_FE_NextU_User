@@ -37,6 +37,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { TransformedEvent, TransformedEventSchedule } from '@/data/ecosystem/event-api'
 import api from '@/utils/axiosConfig'
 import { Notify } from 'notiflix'
+import PaymentSummaryModal from '@/components/payment/PaymentSummaryModal'
 
 interface EventDetailProps {
   event: TransformedEvent
@@ -103,6 +104,10 @@ export default function EventDetail({ event, onBackClick }: EventDetailProps) {
   const [showRecurringModal, setShowRecurringModal] = useState(false)
   const [selectedRecurringTickets, setSelectedRecurringTickets] = useState<SelectedRecurringTicket[]>([])
   const [isRecurringBooking, setIsRecurringBooking] = useState(false)
+  
+  // States for Payment Summary Modal
+  const [showPaymentSummary, setShowPaymentSummary] = useState(false)
+  const [bookingPurchaseId, setBookingPurchaseId] = useState<string>('')
 
   // Tìm lịch gần nhất sắp tới
   const getUpcomingSchedules = () => {
@@ -397,9 +402,19 @@ export default function EventDetail({ event, onBackClick }: EventDetailProps) {
       const response = await api.post('/api/user/event', bookingRequest)
       
       if (response.status === 200 || response.status === 201) {
-        Notify.success('Event booked successfully!')
-        // You can redirect to booking confirmation page here
-        // router.push('/my-bookings')
+        const responseData = response.data
+        
+        if (responseData.success && responseData.data?.id) {
+          // Show payment summary modal with the purchase ID
+          setBookingPurchaseId(responseData.data.id)
+          setShowPaymentSummary(true)
+          
+          // Clear selected items
+          setSelectedTicket(null)
+          setSelectedAddOns([])
+        } else {
+          Notify.failure('Booking failed. Please try again.')
+        }
       }
     } catch (error: any) {
       console.error('Booking error:', error)
@@ -487,10 +502,16 @@ export default function EventDetail({ event, onBackClick }: EventDetailProps) {
       const response = await api.post('/api/user/event/recurring', recurringBookingRequest)
       
       if (response.status === 200 || response.status === 201) {
-        Notify.success('Full schedule booked successfully!')
-        handleCloseRecurringModal()
-        // You can redirect to booking confirmation page here
-        // router.push('/my-bookings')
+        const responseData = response.data
+        
+        if (responseData.success && responseData.data?.id) {
+          // Show payment summary modal with the purchase ID
+          setBookingPurchaseId(responseData.data.id)
+          setShowPaymentSummary(true)
+          handleCloseRecurringModal()
+        } else {
+          Notify.failure('Booking failed. Please try again.')
+        }
       }
     } catch (error: any) {
       console.error('Recurring booking error:', error)
@@ -1486,6 +1507,13 @@ export default function EventDetail({ event, onBackClick }: EventDetailProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Payment Summary Modal */}
+      <PaymentSummaryModal
+        isOpen={showPaymentSummary}
+        onClose={() => setShowPaymentSummary(false)}
+        purchaseId={bookingPurchaseId}
+      />
     </div>
   )
 } 

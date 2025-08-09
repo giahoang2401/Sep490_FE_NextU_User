@@ -12,11 +12,20 @@ import {
   Download,
   Eye,
   Loader2,
-  Plus
+  Plus,
+  Trash2
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import api from '@/utils/axiosConfig'
 import { Notify } from 'notiflix'
 import EventBookingDetailModal from './EventBookingDetailModal'
@@ -28,23 +37,28 @@ interface EventAddOn {
   quantity: number
 }
 
+interface UsageDetail {
+  scheduleId: string
+  useDate: string
+  ticketTypeId: string
+  ticketTypeName: string
+  unitPrice: number
+}
+
 interface EventBooking {
   purchaseId: string
-  eventName: string
-  ticketTypeName: string
-  quantity: number
-  unitPrice: number
-  totalAmount: number
-  addOnAmount: number
   status: 'Pending' | 'Paid' | 'Cancelled' | 'Completed'
   createdAt: string
   paidAt: string | null
-  fullName: string | null
-  paymentMethod: string | null
-  paymentTransactionId: string | null
-  paymentNote: string | null
-  paymentProofUrl: string | null
+  eventName: string
+  isCombo: boolean
+  quantity: number
+  usageDetails: UsageDetail[]
   addOns: EventAddOn[]
+  ticketAmount: number
+  addOnAmount: number
+  totalAmount: number
+  currency: string
 }
 
 interface PaymentRequest {
@@ -62,6 +76,9 @@ export default function EventBookingHistory() {
   const [selectedBooking, setSelectedBooking] = useState<EventBooking | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [processingPayment, setProcessingPayment] = useState<string | null>(null)
+  const [cancelBooking, setCancelBooking] = useState<EventBooking | null>(null)
+  const [isCancelModalOpen, setIsCancelModalOpen] = useState(false)
+  const [processingCancel, setProcessingCancel] = useState<string | null>(null)
 
   useEffect(() => {
     fetchEventBookings()
@@ -180,6 +197,42 @@ export default function EventBookingHistory() {
     handlePayment(booking)
   }
 
+  const handleCancelClick = (e: React.MouseEvent, booking: EventBooking) => {
+    e.stopPropagation() // Prevent modal from opening
+    setCancelBooking(booking)
+    setIsCancelModalOpen(true)
+  }
+
+  const handleCancelBooking = async () => {
+    if (!cancelBooking) return
+
+    try {
+      setProcessingCancel(cancelBooking.purchaseId)
+      
+      const response = await api.delete(`/api/user/event/${cancelBooking.purchaseId}`)
+      
+      if (response.status === 200 || response.status === 204) {
+        Notify.success('Booking cancelled successfully')
+        // Refresh the bookings list
+        await fetchEventBookings()
+        // Close the modal
+        setIsCancelModalOpen(false)
+        setCancelBooking(null)
+      }
+    } catch (error: any) {
+      console.error('Cancel booking error:', error)
+      const errorMessage = error.response?.data?.message || 'Failed to cancel booking. Please try again.'
+      Notify.failure(errorMessage)
+    } finally {
+      setProcessingCancel(null)
+    }
+  }
+
+  const handleCloseCancelModal = () => {
+    setIsCancelModalOpen(false)
+    setCancelBooking(null)
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -226,7 +279,7 @@ export default function EventBookingHistory() {
                   </h3>
                   <div className="flex items-center text-sm text-gray-600 mb-2">
                     <Ticket className="h-3 w-3 mr-1 flex-shrink-0" />
-                    <span className="truncate">{booking.ticketTypeName}</span>
+                    <span className="truncate">{booking.isCombo ? 'Combo Ticket' : 'Single Ticket'}</span>
                   </div>
                   <div className="flex items-center text-xs text-gray-500">
                     <Calendar className="h-3 w-3 mr-1 flex-shrink-0" />
@@ -251,6 +304,12 @@ export default function EventBookingHistory() {
                   <span className="text-gray-600">Total:</span>
                   <span className="font-semibold text-blue-600">{formatPrice(booking.totalAmount)}</span>
                 </div>
+                {booking.paidAt && (
+                  <div className="flex justify-between text-xs text-gray-500">
+                    <span>Paid at:</span>
+                    <span>{formatDate(booking.paidAt)}</span>
+                  </div>
+                )}
                 {booking.addOns.length > 0 && (
                   <div className="flex justify-between text-xs text-gray-500">
                     <span>Add-ons:</span>
@@ -265,21 +324,39 @@ export default function EventBookingHistory() {
                   <Eye className="h-3 w-3 mr-1" />
                   Details
                 </Button>
-                {booking.status === 'Pending' && (
-                  <Button 
-                    size="sm" 
-                    className="bg-blue-600 hover:bg-blue-700 text-xs h-7"
-                    onClick={(e) => handlePayNow(e, booking)}
-                    disabled={processingPayment === booking.purchaseId}
-                  >
-                    {processingPayment === booking.purchaseId ? (
-                      <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                    ) : (
-                      <CreditCard className="h-3 w-3 mr-1" />
-                    )}
-                    {processingPayment === booking.purchaseId ? 'Processing...' : 'Pay'}
-                  </Button>
-                )}
+                <div className="flex space-x-2">
+                  {booking.status === 'Pending' && (
+                    <>
+                      <Button 
+                        variant="outline"
+                        size="sm" 
+                        className="text-xs h-7 text-red-600 hover:text-red-700 hover:bg-red-50"
+                        onClick={(e) => handleCancelClick(e, booking)}
+                        disabled={processingCancel === booking.purchaseId}
+                      >
+                        {processingCancel === booking.purchaseId ? (
+                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-3 w-3 mr-1" />
+                        )}
+                        Cancel
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        className="bg-blue-600 hover:bg-blue-700 text-xs h-7"
+                        onClick={(e) => handlePayNow(e, booking)}
+                        disabled={processingPayment === booking.purchaseId}
+                      >
+                        {processingPayment === booking.purchaseId ? (
+                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                        ) : (
+                          <CreditCard className="h-3 w-3 mr-1" />
+                        )}
+                        {processingPayment === booking.purchaseId ? 'Processing...' : 'Pay'}
+                      </Button>
+                    </>
+                  )}
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -292,8 +369,62 @@ export default function EventBookingHistory() {
         isOpen={isModalOpen}
         onClose={handleCloseModal}
         onPayment={handlePayment}
+        onCancel={handleCancelClick}
         processingPayment={processingPayment}
+        processingCancel={processingCancel}
       />
+
+      {/* Cancel Confirmation Modal */}
+      <Dialog open={isCancelModalOpen} onOpenChange={handleCloseCancelModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Cancel Booking</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to cancel this booking? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          
+          {cancelBooking && (
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <h4 className="font-semibold text-gray-900 mb-2">{cancelBooking.eventName}</h4>
+              <div className="text-sm text-gray-600 space-y-1">
+                <div>Type: {cancelBooking.isCombo ? 'Combo Ticket' : 'Single Ticket'}</div>
+                <div>Total Amount: {formatPrice(cancelBooking.totalAmount)}</div>
+                <div>Created: {formatDate(cancelBooking.createdAt)}</div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="sm:justify-start">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleCloseCancelModal}
+              disabled={processingCancel !== null}
+            >
+              No, Keep Booking
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={handleCancelBooking}
+              disabled={processingCancel !== null}
+            >
+              {processingCancel ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Cancelling...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Yes, Cancel Booking
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   )
 } 

@@ -10,7 +10,8 @@ import {
   AlertCircle,
   Download,
   X,
-  Loader2
+  Loader2,
+  Trash2
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -30,23 +31,28 @@ interface EventAddOn {
   quantity: number
 }
 
+interface UsageDetail {
+  scheduleId: string
+  useDate: string
+  ticketTypeId: string
+  ticketTypeName: string
+  unitPrice: number
+}
+
 interface EventBooking {
   purchaseId: string
-  eventName: string
-  ticketTypeName: string
-  quantity: number
-  unitPrice: number
-  totalAmount: number
-  addOnAmount: number
   status: 'Pending' | 'Paid' | 'Cancelled' | 'Completed'
   createdAt: string
   paidAt: string | null
-  fullName: string | null
-  paymentMethod: string | null
-  paymentTransactionId: string | null
-  paymentNote: string | null
-  paymentProofUrl: string | null
+  eventName: string
+  isCombo: boolean
+  quantity: number
+  usageDetails: UsageDetail[]
   addOns: EventAddOn[]
+  ticketAmount: number
+  addOnAmount: number
+  totalAmount: number
+  currency: string
 }
 
 interface EventBookingDetailModalProps {
@@ -54,7 +60,9 @@ interface EventBookingDetailModalProps {
   isOpen: boolean
   onClose: () => void
   onPayment?: (booking: EventBooking) => Promise<void>
+  onCancel?: (e: React.MouseEvent, booking: EventBooking) => void
   processingPayment?: string | null
+  processingCancel?: string | null
 }
 
 export default function EventBookingDetailModal({ 
@@ -62,7 +70,9 @@ export default function EventBookingDetailModal({
   isOpen, 
   onClose,
   onPayment,
-  processingPayment
+  onCancel,
+  processingPayment,
+  processingCancel
 }: EventBookingDetailModalProps) {
   if (!booking) return null
 
@@ -121,6 +131,12 @@ export default function EventBookingDetailModal({
     }
   }
 
+  const handleCancelNow = (e: React.MouseEvent) => {
+    if (onCancel && booking) {
+      onCancel(e, booking)
+    }
+  }
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
@@ -147,12 +163,18 @@ export default function EventBookingDetailModal({
                   <div className="flex items-center space-x-4 text-sm text-gray-600">
                     <div className="flex items-center">
                       <Ticket className="h-4 w-4 mr-1" />
-                      {booking.ticketTypeName}
+                      {booking.isCombo ? 'Combo Ticket' : 'Single Ticket'}
                     </div>
                     <div className="flex items-center">
                       <Calendar className="h-4 w-4 mr-1" />
                       {formatDate(booking.createdAt)}
                     </div>
+                    {booking.paidAt && (
+                      <div className="flex items-center">
+                        <Clock className="h-4 w-4 mr-1" />
+                        Paid: {formatDate(booking.paidAt)}
+                      </div>
+                    )}
                   </div>
                 </div>
                 <Badge className={`${getStatusColor(booking.status)} border`}>
@@ -165,27 +187,70 @@ export default function EventBookingDetailModal({
             </CardHeader>
             
             <CardContent className="p-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Booking Details */}
+              {/* Usage Details / Schedules */}
+              <div className="space-y-4 mb-6">
+                <h4 className="font-semibold text-gray-900">
+                  {booking.isCombo ? 'Combo Schedule Details' : 'Ticket Details'}
+                </h4>
+                <div className="space-y-3">
+                  {booking.usageDetails.map((usage, index) => (
+                    <div key={usage.scheduleId} className="p-4 bg-gray-50 rounded-lg">
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-2 mb-2">
+                            <Badge variant="outline" className="text-xs">
+                              {booking.isCombo ? `Session ${index + 1}` : 'Single Session'}
+                            </Badge>
+                            <span className="text-sm font-medium text-gray-900">
+                              {usage.ticketTypeName}
+                            </span>
+                          </div>
+                          <div className="flex items-center text-sm text-gray-600 mb-1">
+                            <Calendar className="h-4 w-4 mr-1" />
+                            {new Date(usage.useDate).toLocaleDateString('en-US', {
+                              weekday: 'long',
+                              year: 'numeric',
+                              month: 'long',
+                              day: 'numeric'
+                            })}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            Schedule ID: {usage.scheduleId}
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <span className="font-medium text-gray-900">
+                            {formatPrice(usage.unitPrice)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Summary */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                {/* Booking Summary */}
                 <div className="space-y-4">
-                  <h4 className="font-semibold text-gray-900">Booking Details</h4>
+                  <h4 className="font-semibold text-gray-900">Booking Summary</h4>
                   <div className="space-y-3">
                     <div className="flex justify-between">
-                      <span className="text-gray-600">Ticket Type:</span>
-                      <span className="font-medium">{booking.ticketTypeName}</span>
+                      <span className="text-gray-600">Type:</span>
+                      <span className="font-medium">{booking.isCombo ? 'Combo Package' : 'Single Ticket'}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-600">Quantity:</span>
                       <span className="font-medium">{booking.quantity}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-600">Unit Price:</span>
-                      <span className="font-medium">{formatPrice(booking.unitPrice)}</span>
+                      <span className="text-gray-600">Sessions:</span>
+                      <span className="font-medium">{booking.usageDetails.length}</span>
                     </div>
                     <Separator />
                     <div className="flex justify-between">
                       <span className="text-gray-600">Ticket Total:</span>
-                      <span className="font-medium">{formatPrice(booking.unitPrice * booking.quantity)}</span>
+                      <span className="font-medium">{formatPrice(booking.ticketAmount)}</span>
                     </div>
                   </div>
                 </div>
@@ -218,56 +283,52 @@ export default function EventBookingDetailModal({
               <div className="mt-6 pt-4 border-t">
                 <div className="flex justify-between items-center">
                   <span className="text-lg font-semibold text-gray-900">Total Amount</span>
-                  <span className="text-2xl font-bold text-blue-600">{formatPrice(booking.totalAmount)}</span>
+                  <span className="text-2xl font-bold text-blue-600">{formatPrice(booking.totalAmount)} {booking.currency}</span>
                 </div>
               </div>
-
-              {/* Payment Information */}
-              {booking.paymentMethod && (
-                <div className="mt-6 pt-4 border-t">
-                  <h4 className="font-semibold text-gray-900 mb-3">Payment Information</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="flex items-center space-x-2">
-                      <CreditCard className="h-4 w-4 text-gray-500" />
-                      <span className="text-sm text-gray-600">Method: {booking.paymentMethod}</span>
-                    </div>
-                    {booking.paymentTransactionId && (
-                      <div className="flex items-center space-x-2">
-                        <span className="text-sm text-gray-600">Transaction ID: {booking.paymentTransactionId}</span>
-                      </div>
-                    )}
-                    {booking.paidAt && (
-                      <div className="flex items-center space-x-2">
-                        <Clock className="h-4 w-4 text-gray-500" />
-                        <span className="text-sm text-gray-600">Paid: {formatDate(booking.paidAt)}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
 
               {/* Actions */}
               <div className="mt-6 pt-4 border-t">
                 <div className="flex flex-wrap gap-2">
-                  {booking.paymentProofUrl && (
+                  {booking.status === 'Pending' && (
+                    <>
+                      {onCancel && (
+                        <Button 
+                          variant="outline"
+                          size="sm" 
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          onClick={handleCancelNow}
+                          disabled={processingCancel === booking.purchaseId}
+                        >
+                          {processingCancel === booking.purchaseId ? (
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-4 w-4 mr-2" />
+                          )}
+                          Cancel Booking
+                        </Button>
+                      )}
+                      {onPayment && (
+                        <Button 
+                          size="sm" 
+                          className="bg-blue-600 hover:bg-blue-700"
+                          onClick={handlePayNow}
+                          disabled={processingPayment === booking.purchaseId}
+                        >
+                          {processingPayment === booking.purchaseId ? (
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          ) : (
+                            <CreditCard className="h-4 w-4 mr-2" />
+                          )}
+                          {processingPayment === booking.purchaseId ? 'Processing...' : 'Pay Now'}
+                        </Button>
+                      )}
+                    </>
+                  )}
+                  {booking.status === 'Paid' && (
                     <Button variant="outline" size="sm">
                       <Download className="h-4 w-4 mr-2" />
                       Download Receipt
-                    </Button>
-                  )}
-                  {booking.status === 'Pending' && onPayment && (
-                    <Button 
-                      size="sm" 
-                      className="bg-blue-600 hover:bg-blue-700"
-                      onClick={handlePayNow}
-                      disabled={processingPayment === booking.purchaseId}
-                    >
-                      {processingPayment === booking.purchaseId ? (
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      ) : (
-                        <CreditCard className="h-4 w-4 mr-2" />
-                      )}
-                      {processingPayment === booking.purchaseId ? 'Processing...' : 'Pay Now'}
                     </Button>
                   )}
                 </div>
