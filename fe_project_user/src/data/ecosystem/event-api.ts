@@ -26,6 +26,7 @@ export interface ApiTicketType {
   name: string
   price: number
   totalQuantity: number
+  discountRate?: number
 }
 
 export interface ApiAddOn {
@@ -138,6 +139,7 @@ export interface TransformedTicketType {
   name: string
   price: number
   totalQuantity: number
+  discountRate?: number
 }
 
 export interface TransformedAddOn {

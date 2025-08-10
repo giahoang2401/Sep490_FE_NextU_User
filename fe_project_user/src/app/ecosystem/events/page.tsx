@@ -17,8 +17,6 @@ export default function EventsPage() {
         setLoading(true)
         const eventsData = await eventService.getEvents()
         console.log('Loaded events:', eventsData.length)
-        console.log('Events with featured flag:', eventsData.filter(e => e.featured).length)
-        console.log('Featured events details:', eventsData.filter(e => e.featured).map(e => ({ id: e.id, title: e.title, featured: e.featured })))
         setEvents(eventsData)
       } catch (err) {
         console.error('Error loading events:', err)
@@ -31,24 +29,7 @@ export default function EventsPage() {
     loadEvents()
   }, [])
 
-  // Improved featured events logic
-  const featuredEvents = events.filter(event => {
-    // Check if featured property exists and is true
-    if (event.featured === true) {
-      return true
-    }
-    // Fallback: if no featured events, show first 2 events as featured
-    return false
-  })
 
-  // Fallback: if no featured events, show first 2 events as featured
-  const fallbackFeaturedEvents = featuredEvents.length === 0 && events.length > 0 
-    ? events.slice(0, 2) 
-    : featuredEvents
-
-  const upcomingEvents = events.filter(event => event.status === 'upcoming')
-
-  console.log('Final featured events count:', fallbackFeaturedEvents.length)
 
   if (loading) {
     return (
@@ -81,16 +62,6 @@ export default function EventsPage() {
     <div className="min-h-screen bg-gray-50">
       <EventNavigation />
       
-      {/* Featured Events */}
-      {fallbackFeaturedEvents.length > 0 && (
-        <EventGrid 
-          events={fallbackFeaturedEvents}
-          title="Featured Events"
-          subtitle="Most popular and highly-rated events"
-          showFilters={false}
-        />
-      )}
-
       {/* All Events */}
       <EventGrid 
         events={events}

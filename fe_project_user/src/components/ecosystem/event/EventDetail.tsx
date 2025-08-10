@@ -139,6 +139,10 @@ export default function EventDetail({ event, onBackClick }: EventDetailProps) {
   const [quotaWarning, setQuotaWarning] = useState<string>('')
   const [showPendingModal, setShowPendingModal] = useState(false)
   const [pendingTicketName, setPendingTicketName] = useState<string>('')
+  
+  // State for early bird discount
+  const [earlyBirdDiscounts, setEarlyBirdDiscounts] = useState<Record<string, { earlyDay: string; discountRate: number }>>({})
+  const [timeUntilEarlyBird, setTimeUntilEarlyBird] = useState<string>('')
 
   // Tìm lịch gần nhất sắp tới
   const getUpcomingSchedules = () => {
@@ -176,7 +180,7 @@ export default function EventDetail({ event, onBackClick }: EventDetailProps) {
   }
 
   // Khởi tạo selectedRecurringTickets với ticket đầu tiên của mỗi schedule
-  const initializeRecurringTickets = () => {
+  const initializeRecurringTickets = async () => {
     const allSchedules = getAllSchedules()
     const nonExpiredSchedules = allSchedules.filter(schedule => !isScheduleExpired(schedule))
     const initialTickets: SelectedRecurringTicket[] = nonExpiredSchedules.map(schedule => {
@@ -190,6 +194,14 @@ export default function EventDetail({ event, onBackClick }: EventDetailProps) {
       }
     })
     setSelectedRecurringTickets(initialTickets)
+    
+    // Fetch quota data for all tickets
+    if (initialTickets.length > 0) {
+      const promises = initialTickets.map(ticket => 
+        fetchTicketQuota(ticket.ticketTypeId)
+      )
+      await Promise.all(promises)
+    }
   }
 
   // Khởi tạo lịch được chọn là lịch gần nhất
@@ -211,6 +223,165 @@ export default function EventDetail({ event, onBackClick }: EventDetailProps) {
       fetchAllTicketQuota()
     }
   }, [selectedSchedule])
+
+  // Initialize recurring tickets when component mounts
+  useEffect(() => {
+    if (canBuyFullSchedule()) {
+      initializeRecurringTickets()
+    }
+  }, [event])
+
+  // Fetch quota for all tickets in the full schedule
+  const fetchAllTicketQuotaForFullSchedule = async () => {
+    if (selectedRecurringTickets.length === 0) return
+    
+    const promises = selectedRecurringTickets.map(ticket => 
+      fetchTicketQuota(ticket.ticketTypeId)
+    )
+    
+    await Promise.all(promises)
+  }
+
+  // Check if early bird discount is applicable for any ticket in the full schedule
+  const isEarlyBirdDiscountApplicableForFullSchedule = () => {
+    const now = new Date()
+    
+    // Check if any ticket still has early bird discount available
+    // Use the earliest schedule start time as the early bird deadline
+    const earliestSchedule = getAllSchedules().find(schedule => !isScheduleExpired(schedule))
+    if (!earliestSchedule) return false
+    
+    const earlyBirdDeadline = new Date(earliestSchedule.startTime)
+    const hasDiscount = now < earlyBirdDeadline
+    
+    console.log('Early bird discount check for full schedule:', {
+      selectedRecurringTickets: selectedRecurringTickets.map(t => ({ id: t.ticketTypeId, name: t.ticketName })),
+      earliestSchedule: earliestSchedule.startTime,
+      earlyBirdDeadline,
+      now,
+      hasDiscount
+    })
+    
+    return hasDiscount
+  }
+
+  // Check if early bird discount is applicable for a specific ticket
+  const isEarlyBirdDiscountApplicable = (ticketTypeId: string) => {
+    // For full schedule purchase, if any ticket qualifies for early bird, all tickets get discount
+    if (selectedRecurringTickets.length > 1) {
+      return isEarlyBirdDiscountApplicableForFullSchedule()
+    }
+    
+    // For single ticket purchase, check if event hasn't started yet
+    const now = new Date()
+    const schedule = event.schedules.find(s => 
+      s.ticketTypes.some(t => t.id === ticketTypeId)
+    )
+    if (!schedule) return false
+    
+    const eventStartTime = new Date(schedule.startTime)
+    return now < eventStartTime
+  }
+
+  // Get discount rate for a ticket
+  const getTicketDiscountRate = (ticketTypeId: string) => {
+    const schedule = event.schedules.find(s => 
+      s.ticketTypes.some(t => t.id === ticketTypeId)
+    )
+    if (!schedule) return 0
+    
+    const ticket = schedule.ticketTypes.find(t => t.id === ticketTypeId)
+    const discountRate = ticket?.discountRate || 0
+    
+    console.log('Getting discount rate for ticket:', {
+      ticketTypeId,
+      ticketName: ticket?.name,
+      discountRate,
+      allTicketTypes: schedule.ticketTypes.map(t => ({ id: t.id, name: t.name, discountRate: t.discountRate }))
+    })
+    
+    return discountRate
+  }
+
+  // Calculate discounted price for a ticket
+  const calculateDiscountedPrice = (ticketTypeId: string, originalPrice: number) => {
+    if (!isEarlyBirdDiscountApplicable(ticketTypeId)) return originalPrice
+    
+    const discountRate = getTicketDiscountRate(ticketTypeId)
+    if (discountRate <= 0) return originalPrice
+    
+    return originalPrice * (1 - discountRate)
+  }
+
+  // Calculate total price with early bird discount for full schedule
+  const calculateFullScheduleTotalPrice = () => {
+    let totalOriginalPrice = 0
+    let totalDiscountedPrice = 0
+    let totalDiscount = 0
+
+    console.log('Calculating full schedule total price:', {
+      selectedRecurringTickets: selectedRecurringTickets.map(t => ({ id: t.ticketTypeId, name: t.ticketName, price: t.price }))
+    })
+
+    selectedRecurringTickets.forEach(ticket => {
+      const originalPrice = ticket.price
+      const discountedPrice = calculateDiscountedPrice(ticket.ticketTypeId, originalPrice)
+      
+      console.log('Ticket discount calculation:', {
+        ticketId: ticket.ticketTypeId,
+        ticketName: ticket.ticketName,
+        originalPrice,
+        discountedPrice,
+        discount: originalPrice - discountedPrice,
+        isDiscountApplicable: isEarlyBirdDiscountApplicable(ticket.ticketTypeId)
+      })
+      
+      totalOriginalPrice += originalPrice
+      totalDiscountedPrice += discountedPrice
+      totalDiscount += (originalPrice - discountedPrice)
+    })
+
+    // Add add-ons (no discount for add-ons)
+    const addOnsTotal = selectedAddOns.reduce((total, addon) => 
+      total + (addon.price * addon.quantity), 0
+    )
+
+    const result = {
+      originalTotal: totalOriginalPrice + addOnsTotal,
+      discountedTotal: totalDiscountedPrice + addOnsTotal,
+      totalDiscount: totalDiscount,
+      hasDiscount: totalDiscount > 0
+    }
+
+    console.log('Full schedule price calculation result:', result)
+
+    return result
+  }
+
+  // Calculate time remaining until early bird deadline
+  const calculateTimeUntilEarlyBird = () => {
+    const now = new Date()
+    
+    // Use the earliest schedule start time as the early bird deadline
+    const earliestSchedule = getAllSchedules().find(schedule => !isScheduleExpired(schedule))
+    if (!earliestSchedule) return ''
+    
+    const earlyBirdDeadline = new Date(earliestSchedule.startTime)
+    if (earlyBirdDeadline <= now) return ''
+    
+    const diffMs = earlyBirdDeadline.getTime() - now.getTime()
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+    const diffHours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))
+    const diffMinutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60))
+    
+    if (diffDays > 0) {
+      return `${diffDays} day${diffDays > 1 ? 's' : ''} ${diffHours} hour${diffHours > 1 ? 's' : ''}`
+    } else if (diffHours > 0) {
+      return `${diffHours} hour${diffHours > 1 ? 's' : ''} ${diffMinutes} minute${diffMinutes > 1 ? 's' : ''}`
+    } else {
+      return `${diffMinutes} minute${diffMinutes > 1 ? 's' : ''}`
+    }
+  }
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -645,12 +816,12 @@ export default function EventDetail({ event, onBackClick }: EventDetailProps) {
   }
 
   // Handler for opening recurring booking modal
-  const handleOpenRecurringModal = () => {
+  const handleOpenRecurringModal = async () => {
     if (!canBuyFullSchedule()) {
       Notify.warning('Full schedule booking is only available before the first schedule starts.')
       return
     }
-    initializeRecurringTickets()
+    await initializeRecurringTickets()
     setShowRecurringModal(true)
   }
 
@@ -717,6 +888,17 @@ export default function EventDetail({ event, onBackClick }: EventDetailProps) {
       }
 
       console.log('Recurring booking request:', recurringBookingRequest) // Debug log
+      
+      // Log discount information
+      const priceCalculation = calculateFullScheduleTotalPrice()
+      if (priceCalculation.hasDiscount) {
+        console.log('Early Bird Discount Applied:', {
+          originalTotal: priceCalculation.originalTotal,
+          discountedTotal: priceCalculation.discountedTotal,
+          totalDiscount: priceCalculation.totalDiscount,
+          discountPercentage: Math.round((priceCalculation.totalDiscount / priceCalculation.originalTotal) * 100)
+        })
+      }
 
       const response = await api.post('/api/user/event/recurring', recurringBookingRequest)
       
@@ -1616,6 +1798,37 @@ export default function EventDetail({ event, onBackClick }: EventDetailProps) {
           </DialogHeader>
           
           <div className="space-y-6">
+            {/* Early Bird Discount Info */}
+            {(() => {
+              const hasAnyDiscount = selectedRecurringTickets.some(ticket => 
+                isEarlyBirdDiscountApplicable(ticket.ticketTypeId) && getTicketDiscountRate(ticket.ticketTypeId) > 0
+              )
+              
+              if (hasAnyDiscount) {
+                const priceCalculation = calculateFullScheduleTotalPrice()
+                return (
+                  <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg">
+                    <div className="flex items-center space-x-2">
+                      <CheckCircle className="h-5 w-5 text-green-600" />
+                      <div className="flex-1">
+                        <p className="font-medium text-green-900">Early Bird Discount Available! 🎉</p>
+                        <p className="text-sm text-green-700 mt-1">
+                          Book your full schedule before the early bird deadline to get special discounted rates on tickets.
+                        </p>
+                        <div className="mt-2 p-2 bg-white/50 rounded border border-green-200">
+                          <p className="text-xs text-green-800">
+                            <span className="font-medium">Potential Savings:</span> {formatPrice(priceCalculation.totalDiscount)} 
+                            ({Math.round((priceCalculation.totalDiscount / priceCalculation.originalTotal) * 100)}% off)
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )
+              }
+              return null
+            })()}
+            
             <div className="p-4 bg-blue-50 rounded-lg">
               <div className="flex items-center space-x-2">
                 <Info className="h-4 w-4 text-blue-600" />
@@ -1699,7 +1912,33 @@ export default function EventDetail({ event, onBackClick }: EventDetailProps) {
                                     )}
                                   </div>
                                   <div className="text-right">
-                                    <p className="font-semibold text-blue-600">{formatPrice(ticket.price)}</p>
+                                    {(() => {
+                                      const isDiscountApplicable = isEarlyBirdDiscountApplicable(ticket.id)
+                                      const discountRate = getTicketDiscountRate(ticket.id)
+                                      const discountedPrice = calculateDiscountedPrice(ticket.id, ticket.price)
+                                      
+                                      return (
+                                        <div className="text-right">
+                                          {isDiscountApplicable && discountRate > 0 ? (
+                                            <div className="space-y-1">
+                                              <p className="text-sm text-gray-500 line-through">
+                                                {formatPrice(ticket.price)}
+                                              </p>
+                                              <p className="font-semibold text-green-600">
+                                                {formatPrice(discountedPrice)}
+                                              </p>
+                                              <p className="text-xs text-green-600 font-medium">
+                                                -{Math.round(discountRate * 100)}%
+                                              </p>
+                                            </div>
+                                          ) : (
+                                            <p className="font-semibold text-blue-600">
+                                              {formatPrice(ticket.price)}
+                                            </p>
+                                          )}
+                                        </div>
+                                      )
+                                    })()}
                                   </div>
                                 </div>
                               )
@@ -1792,21 +2031,64 @@ export default function EventDetail({ event, onBackClick }: EventDetailProps) {
             {/* Total Price */}
             {selectedRecurringTickets.length > 0 && (
               <div className="p-4 bg-gray-50 rounded-lg">
-                <div className="flex justify-between items-center">
-                  <span className="text-lg font-semibold">Total Price:</span>
-                  <span className="text-2xl font-bold text-blue-600">
-                    {formatPrice(
-                      selectedRecurringTickets.reduce((total, ticket) => total + ticket.price, 0) +
-                      selectedAddOns.reduce((total, addon) => total + (addon.price * addon.quantity), 0)
-                    )}
-                  </span>
-                </div>
-                <p className="text-sm text-gray-600 mt-1">
-                  Quantity: 1 ticket per schedule ({selectedRecurringTickets.length} schedules)
-                  {selectedAddOns.length > 0 && (
-                    <span> • {selectedAddOns.length} add-on(s) selected</span>
-                  )}
-                </p>
+                {(() => {
+                  const priceCalculation = calculateFullScheduleTotalPrice()
+                  return (
+                    <>
+                      <div className="space-y-3">
+                        {/* Original Price */}
+                        {priceCalculation.hasDiscount && (
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-gray-600">Original Price:</span>
+                            <span className="text-lg text-gray-500 line-through">
+                              {formatPrice(priceCalculation.originalTotal)}
+                            </span>
+                          </div>
+                        )}
+                        
+                        {/* Discount Amount */}
+                        {priceCalculation.hasDiscount && (
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-green-600 font-medium">Early Bird Discount:</span>
+                            <span className="text-lg text-green-600 font-bold">
+                              -{formatPrice(priceCalculation.totalDiscount)}
+                            </span>
+                          </div>
+                        )}
+                        
+                        {/* Final Price */}
+                        <div className="flex justify-between items-center pt-2 border-t border-gray-200">
+                          <span className="text-lg font-semibold">Final Price:</span>
+                          <span className={`text-2xl font-bold ${priceCalculation.hasDiscount ? 'text-green-600' : 'text-blue-600'}`}>
+                            {formatPrice(priceCalculation.discountedTotal)}
+                          </span>
+                        </div>
+                      </div>
+                      
+                      {/* Early Bird Info */}
+                      {priceCalculation.hasDiscount && (
+                        <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+                          <div className="flex items-center space-x-2">
+                            <CheckCircle className="h-4 w-4 text-green-600" />
+                            <div className="text-sm text-green-800">
+                              <p className="font-medium">Early Bird Discount Applied! 🎉</p>
+                              <p className="text-xs mt-1">
+                                Book before the early bird deadline to save {formatPrice(priceCalculation.totalDiscount)} on your full schedule purchase.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      
+                      <p className="text-sm text-gray-600 mt-3">
+                        Quantity: 1 ticket per schedule ({selectedRecurringTickets.length} schedules)
+                        {selectedAddOns.length > 0 && (
+                          <span> • {selectedAddOns.length} add-on(s) selected</span>
+                        )}
+                      </p>
+                    </>
+                  )
+                })()}
               </div>
             )}
           </div>
