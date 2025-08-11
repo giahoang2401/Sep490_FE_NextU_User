@@ -4,6 +4,10 @@ export interface ApiEvent {
   code: string
   title: string
   description: string
+  notes: string | null
+  agenda: string | null
+  instructorName: string | null
+  phoneNumber: string
   categoryId: number
   categoryName: string
   levelId: number
@@ -26,7 +30,8 @@ export interface ApiTicketType {
   name: string
   price: number
   totalQuantity: number
-  discountRate?: number
+  discountRateEarlyBird?: number | null
+  discountRateCombo?: number | null
 }
 
 export interface ApiAddOn {
@@ -75,22 +80,15 @@ export interface TransformedEvent {
   ticketTypes: TransformedTicketType[]
   addOns: TransformedAddOn[]
   locations: TransformedLocation[]
+  // New API fields
+  notes?: string | null
+  agenda?: string | null
+  instructorName?: string | null
+  phoneNumber?: string
   // Mock data for fields not in API
   image: string
   images: string[]
-  instructor: {
-    name: string
-    avatar: string
-    bio: string
-    expertise: string[]
-  }
   amenities: string[]
-  requirements: {
-    age: string
-    level: string
-    equipment?: string[]
-    healthDeclaration?: boolean
-  }
   capacity: {
     total: number
     available: number
@@ -102,14 +100,7 @@ export interface TransformedEvent {
   tags: string[]
   status: 'upcoming' | 'ongoing' | 'completed' | 'cancelled'
   featured: boolean
-  earlyBirdDiscount?: {
-    percentage: number
-    validUntil: string
-  }
-  groupDiscount?: {
-    minPeople: number
-    percentage: number
-  }
+  // Discount fields are now handled per ticket type via discountRateEarlyBird and discountRateCombo
   // Computed fields
   price: number
   originalPrice?: number
@@ -139,7 +130,8 @@ export interface TransformedTicketType {
   name: string
   price: number
   totalQuantity: number
-  discountRate?: number
+  discountRateEarlyBird?: number | null
+  discountRateCombo?: number | null
 }
 
 export interface TransformedAddOn {

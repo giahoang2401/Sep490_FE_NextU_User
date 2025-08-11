@@ -20,37 +20,11 @@ const mockImages = [
   '/images/events/fitness-class.jpg'
 ]
 
-const mockInstructors = [
-  {
-    name: 'Sarah Johnson',
-    avatar: '/images/instructors/sarah-johnson.jpg',
-    bio: 'Professional instructor with 8 years of experience in wellness and fitness.',
-    expertise: ['Yoga', 'Meditation', 'Fitness Training', 'Wellness Coaching']
-  },
-  {
-    name: 'Michael Chen',
-    avatar: '/images/instructors/michael-chen.jpg',
-    bio: 'Expert chef with 15 years of culinary experience specializing in Asian cuisine.',
-    expertise: ['Asian Cuisine', 'Culinary Arts', 'Food Safety', 'Recipe Development']
-  },
-  {
-    name: 'Emma Davis',
-    avatar: '/images/instructors/emma-davis.jpg',
-    bio: 'Professional photographer with 20 years of experience in various photography styles.',
-    expertise: ['Portrait Photography', 'Landscape', 'Street Photography', 'Photo Editing']
-  },
-  {
-    name: 'David Wilson',
-    avatar: '/images/instructors/david-wilson.jpg',
-    bio: 'Business consultant and startup mentor with extensive experience in entrepreneurship.',
-    expertise: ['Business Strategy', 'Startup Development', 'Networking', 'Mentoring']
-  }
-]
+
 
 // Transform API event to frontend format
 export function transformApiEvent(apiEvent: ApiEvent): TransformedEvent {
   const randomImage = mockImages[Math.floor(Math.random() * mockImages.length)]
-  const randomInstructor = mockInstructors[Math.floor(Math.random() * mockInstructors.length)]
   
   // Get the first schedule for date/time info
   const firstSchedule = apiEvent.schedules[0]
@@ -113,17 +87,15 @@ export function transformApiEvent(apiEvent: ApiEvent): TransformedEvent {
       type: 'equipment' as const
     })),
     locations: apiEvent.locations,
+    // New API fields
+    notes: apiEvent.notes,
+    agenda: apiEvent.agenda,
+    instructorName: apiEvent.instructorName,
+    phoneNumber: apiEvent.phoneNumber,
     // Mock data
     image: randomImage,
     images: [randomImage, randomImage, randomImage],
-    instructor: randomInstructor,
     amenities: ['WiFi', 'Refreshments', 'Materials', 'Certificate'],
-    requirements: {
-      age: '16+',
-      level: apiEvent.levelName,
-      equipment: ['Comfortable clothing'],
-      healthDeclaration: false
-    },
     capacity: {
       total: 20,
       available: Math.floor(Math.random() * 15) + 5,

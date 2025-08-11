@@ -39,6 +39,10 @@ import { TransformedEvent, TransformedEventSchedule } from '@/data/ecosystem/eve
 import api from '@/utils/axiosConfig'
 import { Notify } from 'notiflix'
 import PaymentSummaryModal from '@/components/payment/PaymentSummaryModal'
+import { parseNotes, parseAgenda, parseInstructor } from '@/utils/safeParse'
+import RequirementsChips from './RequirementsChips'
+import AgendaTimeline from './AgendaTimeline'
+import InstructorCard from './InstructorCard'
 
 interface EventDetailProps {
   event: TransformedEvent
@@ -112,6 +116,22 @@ interface TicketQuota {
 }
 
 export default function EventDetail({ event, onBackClick }: EventDetailProps) {
+  console.log('EventDetail component - event data:', {
+    eventId: event.id,
+    title: event.title,
+    schedules: event.schedules.map(s => ({
+      id: s.id,
+      startTime: s.startTime,
+      ticketTypes: s.ticketTypes.map(t => ({
+        id: t.id,
+        name: t.name,
+        price: t.price,
+        discountRateEarlyBird: t.discountRateEarlyBird,
+        discountRateCombo: t.discountRateCombo
+      }))
+    }))
+  })
+
   const router = useRouter()
   const [isLiked, setIsLiked] = useState(false)
   const [activeTab, setActiveTab] = useState('overview')
@@ -140,8 +160,7 @@ export default function EventDetail({ event, onBackClick }: EventDetailProps) {
   const [showPendingModal, setShowPendingModal] = useState(false)
   const [pendingTicketName, setPendingTicketName] = useState<string>('')
   
-  // State for early bird discount
-  const [earlyBirdDiscounts, setEarlyBirdDiscounts] = useState<Record<string, { earlyDay: string; discountRate: number }>>({})
+  // State for early bird countdown
   const [timeUntilEarlyBird, setTimeUntilEarlyBird] = useState<string>('')
 
   // Tìm lịch gần nhất sắp tới
@@ -244,116 +263,250 @@ export default function EventDetail({ event, onBackClick }: EventDetailProps) {
 
   // Check if early bird discount is applicable for any ticket in the full schedule
   const isEarlyBirdDiscountApplicableForFullSchedule = () => {
-    const now = new Date()
-    
     // Check if any ticket still has early bird discount available
-    // Use the earliest schedule start time as the early bird deadline
-    const earliestSchedule = getAllSchedules().find(schedule => !isScheduleExpired(schedule))
-    if (!earliestSchedule) return false
-    
-    const earlyBirdDeadline = new Date(earliestSchedule.startTime)
-    const hasDiscount = now < earlyBirdDeadline
-    
-    console.log('Early bird discount check for full schedule:', {
-      selectedRecurringTickets: selectedRecurringTickets.map(t => ({ id: t.ticketTypeId, name: t.ticketName })),
-      earliestSchedule: earliestSchedule.startTime,
-      earlyBirdDeadline,
-      now,
-      hasDiscount
+    // Use the quota earlyDay field instead of schedule start time
+    const hasAnyEarlyBirdDiscount = selectedRecurringTickets.some(ticket => {
+      const quota = ticketQuota[ticket.ticketTypeId]
+      if (!quota || !quota.earlyDay) return false
+      
+      const now = new Date()
+      const earlyDay = new Date(quota.earlyDay)
+      const isBeforeEarlyDay = now < earlyDay
+      
+      // Also check if the ticket has early bird discount rate
+      const schedule = event.schedules.find(s => 
+        s.ticketTypes.some(t => t.id === ticket.ticketTypeId)
+      )
+      if (!schedule) return false
+      
+      const ticketData = schedule.ticketTypes.find(t => t.id === ticket.ticketTypeId)
+      const hasDiscountRate = ticketData?.discountRateEarlyBird && ticketData.discountRateEarlyBird > 0
+      
+      return isBeforeEarlyDay && hasDiscountRate
     })
     
-    return hasDiscount
+    console.log('Early bird discount check for full schedule:', {
+      selectedRecurringTickets: selectedRecurringTickets.map(t => ({ 
+        id: t.ticketTypeId, 
+        name: t.ticketName,
+        quota: ticketQuota[t.ticketTypeId],
+        hasEarlyBirdDiscount: isEarlyBirdDiscountApplicable(t.ticketTypeId)
+      })),
+      hasAnyEarlyBirdDiscount
+    })
+    
+    return hasAnyEarlyBirdDiscount
   }
 
   // Check if early bird discount is applicable for a specific ticket
   const isEarlyBirdDiscountApplicable = (ticketTypeId: string) => {
-    // For full schedule purchase, if any ticket qualifies for early bird, all tickets get discount
-    if (selectedRecurringTickets.length > 1) {
-      return isEarlyBirdDiscountApplicableForFullSchedule()
-    }
+    // Get quota data to check earlyDay
+    const quota = ticketQuota[ticketTypeId]
+    if (!quota || !quota.earlyDay) return false
     
-    // For single ticket purchase, check if event hasn't started yet
+    // Check if current time is before earlyDay
     const now = new Date()
+    const earlyDay = new Date(quota.earlyDay)
+    const isBeforeEarlyDay = now < earlyDay
+    
+    // Also check if the ticket has early bird discount rate
     const schedule = event.schedules.find(s => 
       s.ticketTypes.some(t => t.id === ticketTypeId)
     )
     if (!schedule) return false
     
-    const eventStartTime = new Date(schedule.startTime)
-    return now < eventStartTime
+    const ticket = schedule.ticketTypes.find(t => t.id === ticketTypeId)
+    const hasDiscountRate = ticket?.discountRateEarlyBird && ticket.discountRateEarlyBird > 0
+    
+    console.log('Early bird discount check for ticket:', {
+      ticketTypeId,
+      ticketName: ticket?.name,
+      earlyDay: quota.earlyDay,
+      now: now.toISOString(),
+      isBeforeEarlyDay,
+      hasDiscountRate,
+      discountRateEarlyBird: ticket?.discountRateEarlyBird,
+      willApply: isBeforeEarlyDay && hasDiscountRate
+    })
+    
+    return isBeforeEarlyDay && hasDiscountRate
   }
 
-  // Get discount rate for a ticket
-  const getTicketDiscountRate = (ticketTypeId: string) => {
+  // Get early bird discount rate for a ticket
+  const getTicketEarlyBirdDiscountRate = (ticketTypeId: string) => {
     const schedule = event.schedules.find(s => 
       s.ticketTypes.some(t => t.id === ticketTypeId)
     )
     if (!schedule) return 0
     
     const ticket = schedule.ticketTypes.find(t => t.id === ticketTypeId)
-    const discountRate = ticket?.discountRate || 0
+    const discountRate = ticket?.discountRateEarlyBird || 0
     
-    console.log('Getting discount rate for ticket:', {
+    console.log('Getting early bird discount rate for ticket:', {
       ticketTypeId,
       ticketName: ticket?.name,
       discountRate,
-      allTicketTypes: schedule.ticketTypes.map(t => ({ id: t.id, name: t.name, discountRate: t.discountRate }))
+      allTicketTypes: schedule.ticketTypes.map(t => ({ id: t.id, name: t.name, discountRateEarlyBird: t.discountRateEarlyBird }))
     })
     
     return discountRate
   }
 
-  // Calculate discounted price for a ticket
+  // Get combo discount rate for a ticket
+  const getTicketComboDiscountRate = (ticketTypeId: string) => {
+    const schedule = event.schedules.find(s => 
+      s.ticketTypes.some(t => t.id === ticketTypeId)
+    )
+    if (!schedule) {
+      console.log('No schedule found for ticket:', ticketTypeId)
+      return 0
+    }
+    
+    const ticket = schedule.ticketTypes.find(t => t.id === ticketTypeId)
+    if (!ticket) {
+      console.log('No ticket found for ticketId:', ticketTypeId, 'in schedule:', schedule.id)
+      return 0
+    }
+    
+    const discountRate = ticket?.discountRateCombo || 0
+    
+    console.log('Getting combo discount rate for ticket:', {
+      ticketTypeId,
+      ticketName: ticket?.name,
+      scheduleId: schedule.id,
+      discountRate,
+      ticketData: ticket,
+      allTicketTypes: schedule.ticketTypes.map(t => ({ 
+        id: t.id, 
+        name: t.name, 
+        discountRateCombo: t.discountRateCombo,
+        discountRateEarlyBird: t.discountRateEarlyBird
+      }))
+    })
+    
+    return discountRate
+  }
+
+  // Calculate discounted price for a ticket (early bird discount)
   const calculateDiscountedPrice = (ticketTypeId: string, originalPrice: number) => {
     if (!isEarlyBirdDiscountApplicable(ticketTypeId)) return originalPrice
     
-    const discountRate = getTicketDiscountRate(ticketTypeId)
+    const discountRate = getTicketEarlyBirdDiscountRate(ticketTypeId)
     if (discountRate <= 0) return originalPrice
     
     return originalPrice * (1 - discountRate)
   }
 
-  // Calculate total price with early bird discount for full schedule
+  // Calculate combo discounted price for a ticket
+  const calculateComboDiscountedPrice = (ticketTypeId: string, originalPrice: number) => {
+    const discountRate = getTicketComboDiscountRate(ticketTypeId)
+    if (discountRate <= 0) return originalPrice
+    
+    return originalPrice * (1 - discountRate)
+  }
+
+  // Calculate total price with early bird and combo discounts for full schedule
   const calculateFullScheduleTotalPrice = () => {
+    // Check if we have selected tickets
+    if (selectedRecurringTickets.length === 0) {
+      return {
+        originalTotal: 0,
+        discountedTotal: 0,
+        totalDiscount: 0,
+        earlyBirdDiscount: 0,
+        comboDiscount: 0,
+        hasDiscount: false,
+        hasEarlyBirdDiscount: false,
+        hasComboDiscount: false,
+        ticketBreakdown: [],
+        addOnsTotal: 0,
+        subtotalAfterEarlyBird: 0,
+        subtotalAfterCombo: 0
+      }
+    }
+
     let totalOriginalPrice = 0
     let totalDiscountedPrice = 0
-    let totalDiscount = 0
+    let totalEarlyBirdDiscount = 0
+    let totalComboDiscount = 0
+    const ticketBreakdown: Array<{
+      ticketName: string
+      scheduleName: string
+      originalPrice: number
+      earlyBirdDiscountedPrice: number
+      earlyBirdDiscount: number
+      earlyBirdDiscountRate: number
+      finalPrice: number
+      comboDiscount: number
+      comboDiscountRate: number
+    }> = []
 
-    console.log('Calculating full schedule total price:', {
-      selectedRecurringTickets: selectedRecurringTickets.map(t => ({ id: t.ticketTypeId, name: t.ticketName, price: t.price }))
-    })
-
+    // Calculate for each ticket using API discount rates
     selectedRecurringTickets.forEach(ticket => {
       const originalPrice = ticket.price
-      const discountedPrice = calculateDiscountedPrice(ticket.ticketTypeId, originalPrice)
       
-      console.log('Ticket discount calculation:', {
-        ticketId: ticket.ticketTypeId,
-        ticketName: ticket.ticketName,
-        originalPrice,
-        discountedPrice,
-        discount: originalPrice - discountedPrice,
-        isDiscountApplicable: isEarlyBirdDiscountApplicable(ticket.ticketTypeId)
-      })
+      // Get discount rates from API (with proper validation)
+      const hasEarlyBirdDiscount = isEarlyBirdDiscountApplicable(ticket.ticketTypeId)
+      const earlyBirdRate = hasEarlyBirdDiscount ? getTicketEarlyBirdDiscountRate(ticket.ticketTypeId) : 0
+      const comboRate = getTicketComboDiscountRate(ticket.ticketTypeId) || 0 // Handle null case
+      
+      // Only apply discounts if they exist and are valid
+      const validEarlyBirdRate = (earlyBirdRate && earlyBirdRate > 0) ? earlyBirdRate : 0
+      const validComboRate = (comboRate && comboRate > 0) ? comboRate : 0
+      
+      // Calculate total discount rate: Early Bird + Combo
+      const totalDiscountRate = validEarlyBirdRate + validComboRate
+      
+      // Calculate final price: originalPrice * (1 - totalDiscountRate)
+      const finalPrice = originalPrice * (1 - totalDiscountRate)
+      
+      // Calculate individual discount amounts
+      const earlyBirdDiscount = originalPrice * validEarlyBirdRate
+      const comboDiscount = originalPrice * validComboRate
       
       totalOriginalPrice += originalPrice
-      totalDiscountedPrice += discountedPrice
-      totalDiscount += (originalPrice - discountedPrice)
+      totalDiscountedPrice += finalPrice
+      totalEarlyBirdDiscount += earlyBirdDiscount
+      totalComboDiscount += comboDiscount
+
+      // Store ticket breakdown for display
+      ticketBreakdown.push({
+        ticketName: ticket.ticketName,
+        scheduleName: ticket.scheduleName,
+        originalPrice,
+        earlyBirdDiscountedPrice: originalPrice - earlyBirdDiscount,
+        earlyBirdDiscount,
+        earlyBirdDiscountRate: validEarlyBirdRate,
+        finalPrice,
+        comboDiscount,
+        comboDiscountRate: validComboRate
+      })
     })
+
+    const subtotalAfterEarlyBird = totalOriginalPrice - totalEarlyBirdDiscount
+    const subtotalAfterCombo = totalDiscountedPrice
 
     // Add add-ons (no discount for add-ons)
     const addOnsTotal = selectedAddOns.reduce((total, addon) => 
       total + (addon.price * addon.quantity), 0
     )
 
+    const totalDiscount = totalEarlyBirdDiscount + totalComboDiscount
+
     const result = {
       originalTotal: totalOriginalPrice + addOnsTotal,
       discountedTotal: totalDiscountedPrice + addOnsTotal,
       totalDiscount: totalDiscount,
-      hasDiscount: totalDiscount > 0
+      earlyBirdDiscount: totalEarlyBirdDiscount,
+      comboDiscount: totalComboDiscount,
+      hasDiscount: totalDiscount > 0,
+      hasEarlyBirdDiscount: totalEarlyBirdDiscount > 0,
+      hasComboDiscount: totalComboDiscount > 0,
+      ticketBreakdown,
+      addOnsTotal,
+      subtotalAfterEarlyBird,
+      subtotalAfterCombo
     }
-
-    console.log('Full schedule price calculation result:', result)
 
     return result
   }
@@ -609,7 +762,18 @@ export default function EventDetail({ event, onBackClick }: EventDetailProps) {
   }
 
   const calculateTotalPrice = () => {
-    const ticketPrice = selectedTicket ? selectedTicket.price * selectedTicket.quantity : 0
+    let ticketPrice = 0
+    
+    if (selectedTicket) {
+      // Apply early bird discount if applicable
+      const isEarlyBirdApplicable = isEarlyBirdDiscountApplicable(selectedTicket.id)
+      const discountedPrice = isEarlyBirdApplicable 
+        ? calculateDiscountedPrice(selectedTicket.id, selectedTicket.price)
+        : selectedTicket.price
+      
+      ticketPrice = discountedPrice * selectedTicket.quantity
+    }
+    
     const addOnsPrice = selectedAddOns.reduce((total, addon) => total + (addon.price * addon.quantity), 0)
     return ticketPrice + addOnsPrice
   }
@@ -817,11 +981,41 @@ export default function EventDetail({ event, onBackClick }: EventDetailProps) {
 
   // Handler for opening recurring booking modal
   const handleOpenRecurringModal = async () => {
+    console.log('Opening recurring modal - current state:', {
+      canBuyFullSchedule: canBuyFullSchedule(),
+      selectedRecurringTickets: selectedRecurringTickets,
+      eventSchedules: event.schedules.map(s => ({
+        id: s.id,
+        startTime: s.startTime,
+        ticketTypes: s.ticketTypes.map(t => ({
+          id: t.id,
+          name: t.name,
+          discountRateCombo: t.discountRateCombo,
+          discountRateEarlyBird: t.discountRateEarlyBird
+        }))
+      }))
+    })
+    
     if (!canBuyFullSchedule()) {
       Notify.warning('Full schedule booking is only available before the first schedule starts.')
       return
     }
+    
     await initializeRecurringTickets()
+    
+    // Fetch quota data for all tickets to ensure early bird discount logic works
+    if (selectedRecurringTickets.length > 0) {
+      const promises = selectedRecurringTickets.map(ticket => 
+        fetchTicketQuota(ticket.ticketTypeId)
+      )
+      await Promise.all(promises)
+    }
+    
+    console.log('After initializeRecurringTickets and quota fetch:', {
+      selectedRecurringTickets: selectedRecurringTickets,
+      ticketQuota: ticketQuota
+    })
+    
     setShowRecurringModal(true)
   }
 
@@ -960,11 +1154,49 @@ export default function EventDetail({ event, onBackClick }: EventDetailProps) {
                     Featured
                   </Badge>
                 )}
-                {event.earlyBirdDiscount && (
-                  <Badge className="bg-red-500 text-white border-0">
-                    -{event.earlyBirdDiscount.percentage}%
-                  </Badge>
-                )}
+                {/* Early bird discount badge - now calculated from ticket types */}
+                {(() => {
+                  const hasEarlyBirdDiscount = event.schedules.some(schedule =>
+                    schedule.ticketTypes.some(ticket => 
+                      ticket.discountRateEarlyBird && ticket.discountRateEarlyBird > 0
+                    )
+                  )
+                  
+                  if (hasEarlyBirdDiscount) {
+                    const maxEarlyBirdDiscount = Math.max(...event.schedules.flatMap(schedule =>
+                      schedule.ticketTypes.map(ticket => ticket.discountRateEarlyBird || 0)
+                    ))
+                    
+                    return (
+                      <Badge className="bg-red-500 text-white border-0">
+                        -{Math.round(maxEarlyBirdDiscount * 100)}%
+                      </Badge>
+                    )
+                  }
+                  return null
+                })()}
+                
+                {/* Combo discount badge */}
+                {(() => {
+                  const hasComboDiscount = event.schedules.some(schedule =>
+                    schedule.ticketTypes.some(ticket => 
+                      ticket.discountRateCombo && ticket.discountRateCombo > 0
+                    )
+                  )
+                  
+                  if (hasComboDiscount) {
+                    const maxComboDiscount = Math.max(...event.schedules.flatMap(schedule =>
+                      schedule.ticketTypes.map(ticket => ticket.discountRateCombo || 0)
+                    ))
+                    
+                    return (
+                      <Badge className="bg-purple-500 text-white border-0">
+                        Combo -{Math.round(maxComboDiscount * 100)}%
+                      </Badge>
+                    )
+                  }
+                  return null
+                })()}
               </div>
               <div className="absolute top-4 right-4 flex gap-2">
                 <Button
@@ -1054,7 +1286,7 @@ export default function EventDetail({ event, onBackClick }: EventDetailProps) {
           <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-8">
             <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="overview">Overview</TabsTrigger>
-              <TabsTrigger value="schedule">Schedule</TabsTrigger>
+              <TabsTrigger value="agenda">Agenda</TabsTrigger>
               <TabsTrigger value="instructor">Instructor</TabsTrigger>
               <TabsTrigger value="feedback">Feedback</TabsTrigger>
             </TabsList>
@@ -1094,22 +1326,7 @@ export default function EventDetail({ event, onBackClick }: EventDetailProps) {
                     {/* Requirements */}
                     <div className="border-l-4 border-orange-500 pl-4">
                       <h4 className="font-semibold text-gray-900 mb-3">Requirements</h4>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
-                          <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
-                          <span className="text-gray-700">Age: {event.requirements.age}</span>
-                        </div>
-                        <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
-                          <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
-                          <span className="text-gray-700">Level: {event.requirements.level}</span>
-                        </div>
-                        {event.requirements.equipment && event.requirements.equipment.map((item, index) => (
-                          <div key={index} className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
-                            <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
-                            <span className="text-gray-700">{item}</span>
-                          </div>
-                        ))}
-                      </div>
+                      <RequirementsChips notes={parseNotes(event.notes)} />
                     </div>
 
                     {/* What's included */}
@@ -1157,65 +1374,26 @@ export default function EventDetail({ event, onBackClick }: EventDetailProps) {
               </Card>
             </TabsContent>
 
-            <TabsContent value="schedule" className="mt-6">
+            <TabsContent value="agenda" className="mt-6">
               <Card>
-                <CardHeader>
-                  <CardTitle>Event Schedule</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {getAllSchedules().map((schedule, index) => {
-                      const isExpired = isScheduleExpired(schedule)
-                      return (
-                        <div key={schedule.id} className={`flex items-start space-x-4 p-4 border rounded-lg ${
-                          isExpired ? 'opacity-50 bg-gray-50' : ''
-                        }`}>
-                          <div className="flex-shrink-0">
-                            <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
-                              isExpired ? 'bg-gray-200' : selectedSchedule?.id === schedule.id ? 'bg-blue-100' : 'bg-gray-100'
-                            }`}>
-                              <span className={`font-semibold ${
-                                isExpired ? 'text-gray-400' : selectedSchedule?.id === schedule.id ? 'text-blue-600' : 'text-gray-600'
-                              }`}>{index + 1}</span>
-                            </div>
-                          </div>
-                          <div className="flex-1">
-                            <h4 className="font-semibold">{schedule.activity}</h4>
-                            <p className="text-gray-600">{schedule.description}</p>
-                            <div className="flex items-center mt-2 text-sm text-gray-500">
-                              <Calendar className="h-4 w-4 mr-1" />
-                              {formatDate(schedule.startTime)}
-                            </div>
-                            <div className="flex items-center mt-1 text-sm text-gray-500">
-                              <Clock className="h-4 w-4 mr-1" />
-                              {formatScheduleTime(schedule.startTime, schedule.endTime)} • {schedule.duration} minutes
-                            </div>
-                          </div>
-                          {isExpired ? (
-                            <Badge variant="destructive" className="bg-red-100 text-red-800">
-                              Expired
-                            </Badge>
-                          ) : selectedSchedule?.id === schedule.id ? (
-                            <Badge className="bg-blue-100 text-blue-800">
-                              Selected
-                            </Badge>
-                          ) : (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleScheduleChange(schedule.id)}
-                              disabled={isExpired}
-                            >
-                              Select
-                            </Button>
-                          )}
-                        </div>
-                      )
-                    })}
+                <CardHeader className="border-b bg-gray-50">
+                  <div className="flex items-center space-x-3">
+                    <div className="p-2 bg-green-100 rounded-lg">
+                      <Clock className="h-5 w-5 text-green-600" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-lg">Event Agenda</CardTitle>
+                      <p className="text-sm text-gray-600 mt-1">Detailed schedule and activities</p>
+                    </div>
                   </div>
+                </CardHeader>
+                <CardContent className="p-6">
+                  <AgendaTimeline agenda={parseAgenda(event.agenda)} />
                 </CardContent>
               </Card>
             </TabsContent>
+
+
 
             <TabsContent value="instructor" className="mt-6">
               <Card>
@@ -1223,26 +1401,7 @@ export default function EventDetail({ event, onBackClick }: EventDetailProps) {
                   <CardTitle>Instructor</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="flex items-start space-x-4">
-                    <Avatar className="h-16 w-16">
-                      <AvatarImage src={event.instructor.avatar} />
-                      <AvatarFallback>{event.instructor.name.charAt(0)}</AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1">
-                      <h3 className="text-xl font-semibold">{event.instructor.name}</h3>
-                      <p className="text-gray-600 mb-3">{event.instructor.bio}</p>
-                      <div>
-                        <h4 className="font-semibold mb-2">Expertise</h4>
-                        <div className="flex flex-wrap gap-2">
-                          {event.instructor.expertise.map((skill, index) => (
-                            <Badge key={index} variant="secondary">
-                              {skill}
-                            </Badge>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                  <InstructorCard instructor={parseInstructor(event.instructorName)} />
                 </CardContent>
               </Card>
             </TabsContent>
@@ -1366,6 +1525,58 @@ export default function EventDetail({ event, onBackClick }: EventDetailProps) {
               </CardContent>
             </Card>
 
+            {/* Early Bird Special Notice - Applies to both Single and Combo */}
+            {selectedSchedule && !isScheduleExpired(selectedSchedule) && (() => {
+              // Check if any ticket has early bird discount available
+              const hasAnyEarlyBirdDiscount = selectedSchedule.ticketTypes.some(ticket => {
+                const earlyBirdRate = getTicketEarlyBirdDiscountRate(ticket.id)
+                return isEarlyBirdDiscountApplicable(ticket.id) && earlyBirdRate > 0
+              })
+              
+              if (hasAnyEarlyBirdDiscount) {
+                // Get the earliest earlyDay from quota data
+                const earlyDays = selectedSchedule.ticketTypes
+                  .map(ticket => ticketQuota[ticket.id]?.earlyDay)
+                  .filter(Boolean)
+                  .map(day => new Date(day))
+                
+                const earliestEarlyDay = earlyDays.length > 0 ? new Date(Math.min(...earlyDays.map(d => d.getTime()))) : null
+                
+                if (earliestEarlyDay) {
+                  const formattedDate = earliestEarlyDay.toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric'
+                  })
+                  
+                  const maxEarlyBirdDiscount = Math.max(...selectedSchedule.ticketTypes.map(ticket => 
+                    getTicketEarlyBirdDiscountRate(ticket.id)
+                  ))
+                  
+                  return (
+                    <div className="mb-4 p-4 bg-gradient-to-r from-orange-50 to-yellow-50 border border-orange-200 rounded-lg">
+                      <div className="flex items-center space-x-3">
+                        <div className="flex-shrink-0">
+                          <div className="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center">
+                            <Clock className="w-4 h-4 text-orange-600" />
+                          </div>
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-base font-semibold text-orange-900">
+                            🎯 Early Bird Special - Limited Time!
+                          </p>
+                          <p className="text-sm text-orange-700 mt-1">
+                            Book before <span className="font-medium">{formattedDate}</span> and save up to <span className="font-bold">{Math.round(maxEarlyBirdDiscount * 100)}%</span> on both single tickets and combo packages!
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                }
+              }
+              return null
+            })()}
+
             {/* Buy Full Schedule Button */}
             <Card className={`mb-6 ${!canBuyFullSchedule() ? 'opacity-50' : ''}`}>
               <CardHeader>
@@ -1398,6 +1609,44 @@ export default function EventDetail({ event, onBackClick }: EventDetailProps) {
                       </div>
                     </div>
                   )}
+                  
+                  {/* Combo Discount Attraction Notice */}
+                  {canBuyFullSchedule() && (() => {
+                    // Check if any ticket has combo discount
+                    const hasAnyComboDiscount = event.schedules.some(schedule =>
+                      schedule.ticketTypes.some(ticket => 
+                        ticket.discountRateCombo && ticket.discountRateCombo > 0
+                      )
+                    )
+                    
+                    if (hasAnyComboDiscount) {
+                      const maxComboDiscount = Math.max(...event.schedules.flatMap(schedule =>
+                        schedule.ticketTypes.map(ticket => ticket.discountRateCombo || 0)
+                      ))
+                      
+                      return (
+                        <div className="p-3 bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-lg">
+                          <div className="flex items-center space-x-2">
+                            <div className="flex-shrink-0">
+                              <div className="w-6 h-6 bg-purple-100 rounded-full flex items-center justify-center">
+                                <Tag className="w-3 h-3 text-purple-600" />
+                              </div>
+                            </div>
+                            <div className="flex-1">
+                              <p className="text-sm font-medium text-purple-900">
+                                💎 Combo Deal Alert!
+                              </p>
+                              <p className="text-xs text-purple-700">
+                                Get an exclusive {Math.round(maxComboDiscount * 100)}% combo discount when you book the complete schedule package!
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    }
+                    return null
+                  })()}
+                  
                   <Button 
                     className={`w-full ${
                       canBuyFullSchedule() 
@@ -1501,14 +1750,52 @@ export default function EventDetail({ event, onBackClick }: EventDetailProps) {
                                     </div>
                                   )}
                                 </div>
-                                <div className="text-right">
-                                  <p className="font-semibold text-blue-600">{formatPrice(ticket.price)}</p>
+                                <div className="text-right space-y-1">
+                                  {(() => {
+                                    // Single ticket only shows Early Bird discount
+                                    const isEarlyBirdApplicable = isEarlyBirdDiscountApplicable(ticket.id)
+                                    const earlyBirdRate = getTicketEarlyBirdDiscountRate(ticket.id)
+                                    
+                                    const hasEarlyBird = isEarlyBirdApplicable && earlyBirdRate > 0
+                                    
+                                    if (hasEarlyBird) {
+                                      const finalPrice = ticket.price * (1 - earlyBirdRate)
+                                      const discountPercentage = Math.round(earlyBirdRate * 100)
+                                      
+                                      return (
+                                        <>
+                                          {/* Original price (crossed out) */}
+                                          <p className="text-sm text-gray-500 line-through">
+                                            {formatPrice(ticket.price)}
+                                          </p>
+                                          
+                                          {/* Early Bird discount badge */}
+                                          <div className="flex items-center justify-end">
+                                            <span className="text-xs bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded font-medium">
+                                              -{discountPercentage}% Early Bird
+                                            </span>
+                                          </div>
+                                          
+                                          {/* Final discounted price */}
+                                          <p className="font-semibold text-orange-600">
+                                            {formatPrice(finalPrice)}
+                                          </p>
+                                        </>
+                                      )
+                                    } else {
+                                      // No early bird discount
+                                      return (
+                                        <p className="font-semibold text-blue-600">{formatPrice(ticket.price)}</p>
+                                      )
+                                    }
+                                  })()}
                                 </div>
                               </div>
                             )
                           })}
                         </div>
                       </RadioGroup>
+
 
                       {/* Quantity selector for selected ticket */}
                       {selectedTicket && (
@@ -1680,7 +1967,46 @@ export default function EventDetail({ event, onBackClick }: EventDetailProps) {
                           <p className="font-medium">{selectedTicket.name}</p>
                           <p className="text-sm text-gray-600">Quantity: {selectedTicket.quantity}</p>
                         </div>
-                        <p className="font-semibold">{formatPrice(selectedTicket.price * selectedTicket.quantity)}</p>
+                        <div className="text-right space-y-1">
+                          {(() => {
+                            const isEarlyBirdApplicable = isEarlyBirdDiscountApplicable(selectedTicket.id)
+                            const earlyBirdRate = getTicketEarlyBirdDiscountRate(selectedTicket.id)
+                            const hasEarlyBird = isEarlyBirdApplicable && earlyBirdRate > 0
+                            
+                            if (hasEarlyBird) {
+                              const originalTotal = selectedTicket.price * selectedTicket.quantity
+                              const discountedPrice = calculateDiscountedPrice(selectedTicket.id, selectedTicket.price)
+                              const discountedTotal = discountedPrice * selectedTicket.quantity
+                              const discountPercentage = Math.round(earlyBirdRate * 100)
+                              
+                              return (
+                                <>
+                                  {/* Original price (crossed out) */}
+                                  <p className="text-sm text-gray-500 line-through">
+                                    {formatPrice(originalTotal)}
+                                  </p>
+                                  
+                                  {/* Early Bird discount badge */}
+                                  <div className="flex items-center justify-end">
+                                    <span className="text-xs bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded font-medium">
+                                      -{discountPercentage}% Early Bird
+                                    </span>
+                                  </div>
+                                  
+                                  {/* Final discounted price */}
+                                  <p className="font-semibold text-orange-600">
+                                    {formatPrice(discountedTotal)}
+                                  </p>
+                                </>
+                              )
+                            } else {
+                              // No early bird discount
+                              return (
+                                <p className="font-semibold">{formatPrice(selectedTicket.price * selectedTicket.quantity)}</p>
+                              )
+                            }
+                          })()}
+                        </div>
                       </div>
                     </div>
                   )}
@@ -1719,12 +2045,56 @@ export default function EventDetail({ event, onBackClick }: EventDetailProps) {
                   {selectedTicket && selectedSchedule && !isScheduleExpired(selectedSchedule) && (
                     <>
                       <Separator />
-                      <div className="flex justify-between items-center">
-                        <span className="text-lg font-semibold">Total</span>
-                        <span className="text-2xl font-bold text-blue-600">
-                          {formatPrice(calculateTotalPrice())}
-                        </span>
-                      </div>
+                      {(() => {
+                        const isEarlyBirdApplicable = isEarlyBirdDiscountApplicable(selectedTicket.id)
+                        const hasEarlyBird = isEarlyBirdApplicable && getTicketEarlyBirdDiscountRate(selectedTicket.id) > 0
+                        
+                        if (hasEarlyBird) {
+                          const originalTicketTotal = selectedTicket.price * selectedTicket.quantity
+                          const addOnsTotal = selectedAddOns.reduce((total, addon) => total + (addon.price * addon.quantity), 0)
+                          const originalTotal = originalTicketTotal + addOnsTotal
+                          const discountedTotal = calculateTotalPrice()
+                          const totalSavings = originalTotal - discountedTotal
+                          
+                          return (
+                            <div className="space-y-3">
+                              {/* Original total (crossed out) */}
+                              <div className="flex justify-between items-center">
+                                <span className="text-sm text-gray-500">Original Price</span>
+                                <span className="text-lg text-gray-500 line-through">
+                                  {formatPrice(originalTotal)}
+                                </span>
+                              </div>
+                              
+                              {/* Savings */}
+                              <div className="flex justify-between items-center">
+                                <span className="text-sm text-green-600 font-medium">Early Bird Savings</span>
+                                <span className="text-lg text-green-600 font-medium">
+                                  -{formatPrice(totalSavings)}
+                                </span>
+                              </div>
+                              
+                              {/* Final total */}
+                              <div className="flex justify-between items-center pt-2 border-t">
+                                <span className="text-lg font-semibold">Total</span>
+                                <span className="text-2xl font-bold text-orange-600">
+                                  {formatPrice(discountedTotal)}
+                                </span>
+                              </div>
+                            </div>
+                          )
+                        } else {
+                          // No discount
+                          return (
+                            <div className="flex justify-between items-center">
+                              <span className="text-lg font-semibold">Total</span>
+                              <span className="text-2xl font-bold text-blue-600">
+                                {formatPrice(calculateTotalPrice())}
+                              </span>
+                            </div>
+                          )
+                        }
+                      })()}
                     </>
                   )}
 
@@ -1798,47 +2168,46 @@ export default function EventDetail({ event, onBackClick }: EventDetailProps) {
           </DialogHeader>
           
           <div className="space-y-6">
-            {/* Early Bird Discount Info */}
+            {/* Discount Info */}
             {(() => {
-              const hasAnyDiscount = selectedRecurringTickets.some(ticket => 
-                isEarlyBirdDiscountApplicable(ticket.ticketTypeId) && getTicketDiscountRate(ticket.ticketTypeId) > 0
-              )
+              const priceCalculation = calculateFullScheduleTotalPrice()
+              const hasEarlyBirdDiscount = priceCalculation.hasEarlyBirdDiscount
+              const hasComboDiscount = priceCalculation.hasComboDiscount
               
-              if (hasAnyDiscount) {
-                const priceCalculation = calculateFullScheduleTotalPrice()
+              // Show discount info if either early bird or combo discount exists
+              if (hasEarlyBirdDiscount || hasComboDiscount) {
                 return (
-                  <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg">
-                    <div className="flex items-center space-x-2">
-                      <CheckCircle className="h-5 w-5 text-green-600" />
-                      <div className="flex-1">
-                        <p className="font-medium text-green-900">Early Bird Discount Available! 🎉</p>
+                  <div className="space-y-3">
+                    {/* Early Bird Discount Info */}
+                    {hasEarlyBirdDiscount && (
+                      <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                        <p className="font-medium text-green-900">Early Bird Discount Available</p>
                         <p className="text-sm text-green-700 mt-1">
-                          Book your full schedule before the early bird deadline to get special discounted rates on tickets.
+                          Save {formatPrice(priceCalculation.earlyBirdDiscount)} ({Math.round((priceCalculation.earlyBirdDiscount / priceCalculation.originalTotal) * 100)}% off) when booking before the deadline.
                         </p>
-                        <div className="mt-2 p-2 bg-white/50 rounded border border-green-200">
-                          <p className="text-xs text-green-800">
-                            <span className="font-medium">Potential Savings:</span> {formatPrice(priceCalculation.totalDiscount)} 
-                            ({Math.round((priceCalculation.totalDiscount / priceCalculation.originalTotal) * 100)}% off)
-                          </p>
-                        </div>
                       </div>
-                    </div>
+                    )}
+
+                    {/* Combo Discount Info */}
+                    {hasComboDiscount && (
+                      <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg">
+                        <p className="font-medium text-purple-900">Combo Discount Available</p>
+                        <p className="text-sm text-purple-700 mt-1">
+                          Additional {formatPrice(priceCalculation.comboDiscount)} savings when purchasing the full schedule package.
+                        </p>
+                      </div>
+                    )}
                   </div>
                 )
               }
               return null
             })()}
             
-            <div className="p-4 bg-blue-50 rounded-lg">
-              <div className="flex items-center space-x-2">
-                <Info className="h-4 w-4 text-blue-600" />
-                <div>
-                  <p className="font-medium text-blue-900">Full Schedule Booking</p>
-                  <p className="text-sm text-blue-700">
-                    Select ticket types for each schedule. Quantity will be set to 1 for all tickets.
-                  </p>
-                </div>
-              </div>
+            <div className="p-3 bg-blue-50 rounded-lg">
+              <p className="font-medium text-blue-900">Full Schedule Booking</p>
+              <p className="text-sm text-blue-700 mt-1">
+                Select ticket types for each schedule. Quantity will be set to 1 for all tickets.
+              </p>
             </div>
 
             <div className="space-y-4">
@@ -1913,31 +2282,71 @@ export default function EventDetail({ event, onBackClick }: EventDetailProps) {
                                   </div>
                                   <div className="text-right">
                                     {(() => {
-                                      const isDiscountApplicable = isEarlyBirdDiscountApplicable(ticket.id)
-                                      const discountRate = getTicketDiscountRate(ticket.id)
-                                      const discountedPrice = calculateDiscountedPrice(ticket.id, ticket.price)
+                                      const isEarlyBirdApplicable = isEarlyBirdDiscountApplicable(ticket.id)
+                                      const earlyBirdRate = getTicketEarlyBirdDiscountRate(ticket.id)
+                                      const comboRate = getTicketComboDiscountRate(ticket.id)
                                       
-                                      return (
-                                        <div className="text-right">
-                                          {isDiscountApplicable && discountRate > 0 ? (
-                                            <div className="space-y-1">
-                                              <p className="text-sm text-gray-500 line-through">
-                                                {formatPrice(ticket.price)}
-                                              </p>
-                                              <p className="font-semibold text-green-600">
-                                                {formatPrice(discountedPrice)}
-                                              </p>
-                                              <p className="text-xs text-green-600 font-medium">
-                                                -{Math.round(discountRate * 100)}%
-                                              </p>
+                                      // Calculate combined discount
+                                      const hasEarlyBird = isEarlyBirdApplicable && earlyBirdRate > 0
+                                      const hasCombo = comboRate > 0
+                                      const hasAnyDiscount = hasEarlyBird || hasCombo
+                                      
+                                      if (hasAnyDiscount) {
+                                        // Calculate total discount rate from API data
+                                        let totalDiscountRate = 0
+                                        let discountDetails: string[] = []
+                                        
+                                        // Check Early Bird discount (with earlyDay validation)
+                                        if (hasEarlyBird && earlyBirdRate > 0) {
+                                          totalDiscountRate += earlyBirdRate
+                                          discountDetails.push(`${Math.round(earlyBirdRate * 100)}% Early Bird`)
+                                        }
+                                        
+                                        // Check Combo discount
+                                        if (hasCombo && comboRate > 0) {
+                                          totalDiscountRate += comboRate
+                                          discountDetails.push(`${Math.round(comboRate * 100)}% Combo`)
+                                        }
+                                        
+                                        // Calculate final price: originalPrice * (1 - totalDiscountRate)
+                                        const finalPrice = ticket.price * (1 - totalDiscountRate)
+                                        const discountPercentage = Math.round(totalDiscountRate * 100)
+                                        
+                                        return (
+                                          <div className="text-right space-y-1">
+                                            {/* Original price (crossed out) */}
+                                            <p className="text-sm text-gray-500 line-through">
+                                              {formatPrice(ticket.price)}
+                                            </p>
+                                            
+                                            {/* Discount percentage with details */}
+                                            <div className="flex items-center justify-end">
+                                              <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded font-medium">
+                                                -{discountPercentage}% OFF
+                                                {discountDetails.length > 0 && (
+                                                  <span className="text-gray-600 ml-1">
+                                                    ({discountDetails.join(' + ')})
+                                                  </span>
+                                                )}
+                                              </span>
                                             </div>
-                                          ) : (
+                                            
+                                            {/* Final discounted price */}
+                                            <p className="font-semibold text-green-600 text-lg">
+                                              {formatPrice(finalPrice)}
+                                            </p>
+                                          </div>
+                                        )
+                                      } else {
+                                        // No discounts available
+                                        return (
+                                          <div className="text-right space-y-1">
                                             <p className="font-semibold text-blue-600">
                                               {formatPrice(ticket.price)}
                                             </p>
-                                          )}
-                                        </div>
-                                      )
+                                          </div>
+                                        )
+                                      }
                                     })()}
                                   </div>
                                 </div>
@@ -2034,59 +2443,100 @@ export default function EventDetail({ event, onBackClick }: EventDetailProps) {
                 {(() => {
                   const priceCalculation = calculateFullScheduleTotalPrice()
                   return (
-                    <>
+                    <div className="space-y-4">
+                      {/* Ticket Breakdown */}
                       <div className="space-y-3">
-                        {/* Original Price */}
-                        {priceCalculation.hasDiscount && (
-                          <div className="flex justify-between items-center">
-                            <span className="text-sm text-gray-600">Original Price:</span>
-                            <span className="text-lg text-gray-500 line-through">
-                              {formatPrice(priceCalculation.originalTotal)}
-                            </span>
-                          </div>
-                        )}
-                        
-                        {/* Discount Amount */}
-                        {priceCalculation.hasDiscount && (
-                          <div className="flex justify-between items-center">
-                            <span className="text-sm text-green-600 font-medium">Early Bird Discount:</span>
-                            <span className="text-lg text-green-600 font-bold">
-                              -{formatPrice(priceCalculation.totalDiscount)}
-                            </span>
-                          </div>
-                        )}
-                        
-                        {/* Final Price */}
-                        <div className="flex justify-between items-center pt-2 border-t border-gray-200">
-                          <span className="text-lg font-semibold">Final Price:</span>
-                          <span className={`text-2xl font-bold ${priceCalculation.hasDiscount ? 'text-green-600' : 'text-blue-600'}`}>
-                            {formatPrice(priceCalculation.discountedTotal)}
-                          </span>
-                        </div>
-                      </div>
-                      
-                      {/* Early Bird Info */}
-                      {priceCalculation.hasDiscount && (
-                        <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
-                          <div className="flex items-center space-x-2">
-                            <CheckCircle className="h-4 w-4 text-green-600" />
-                            <div className="text-sm text-green-800">
-                              <p className="font-medium">Early Bird Discount Applied! 🎉</p>
-                              <p className="text-xs mt-1">
-                                Book before the early bird deadline to save {formatPrice(priceCalculation.totalDiscount)} on your full schedule purchase.
-                              </p>
+                        <h4 className="font-semibold text-gray-800 text-lg mb-3">
+                          Ticket Breakdown
+                        </h4>
+                        {priceCalculation.ticketBreakdown.map((ticket, index) => (
+                          <div key={index} className="bg-white p-3 rounded-lg border border-gray-200">
+                            <div className="flex justify-between items-start mb-2">
+                              <div>
+                                <p className="font-medium text-gray-800">
+                                  {ticket.ticketName} <span className="text-sm text-gray-500">(Qty: 1)</span>
+                                </p>
+                                <p className="text-sm text-gray-600">{ticket.scheduleName}</p>
+                              </div>
+                              <div className="text-right space-y-1">
+                                {/* Original price (crossed out) */}
+                                <p className="text-sm text-gray-500 line-through">
+                                  {formatPrice(ticket.originalPrice)}
+                                </p>
+                                
+                                {/* Discount percentage if applicable */}
+                                {(ticket.earlyBirdDiscount > 0 || ticket.comboDiscount > 0) && (
+                                  <div className="flex items-center justify-end">
+                                    <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded font-medium">
+                                      -{Math.round(((ticket.originalPrice - ticket.finalPrice) / ticket.originalPrice) * 100)}% OFF
+                                      {(() => {
+                                        const discountDetails: string[] = []
+                                        if (ticket.earlyBirdDiscount > 0) {
+                                          discountDetails.push(`${Math.round(ticket.earlyBirdDiscountRate * 100)}% Early Bird`)
+                                        }
+                                        if (ticket.comboDiscount > 0) {
+                                          discountDetails.push(`${Math.round(ticket.comboDiscountRate * 100)}% Combo`)
+                                        }
+                                        return discountDetails.length > 0 ? (
+                                          <span className="text-gray-600 ml-1">
+                                            ({discountDetails.join(' + ')})
+                                          </span>
+                                        ) : null
+                                      })()}
+                                    </span>
+                                  </div>
+                                )}
+                                
+                                {/* Final price */}
+                                <p className="font-semibold text-green-600 text-lg">
+                                  {formatPrice(ticket.finalPrice)}
+                                </p>
+                              </div>
                             </div>
                           </div>
+                        ))}
+                      </div>
+
+                      {/* Add-ons */}
+                      {priceCalculation.addOnsTotal > 0 && (
+                        <div className="space-y-3">
+                          <h4 className="font-semibold text-gray-800 text-lg mb-3">
+                            Add-ons
+                          </h4>
+                          {selectedAddOns.map((addon) => (
+                            <div key={addon.id} className="bg-white p-3 rounded-lg border border-gray-200">
+                              <div className="flex justify-between items-center">
+                                <div>
+                                  <p className="font-medium text-gray-800">
+                                    {addon.name} <span className="text-sm text-gray-500">(Qty: {addon.quantity})</span>
+                                  </p>
+                                </div>
+                                <p className="font-semibold text-blue-600">
+                                  {formatPrice(addon.price * addon.quantity)}
+                                </p>
+                              </div>
+                            </div>
+                          ))}
                         </div>
                       )}
+
+                      {/* Final Price */}
+                      <div className="flex justify-between items-center pt-4 border-t-2 border-gray-300">
+                        <span className="text-xl font-bold text-gray-800">
+                          Final Price:
+                        </span>
+                        <span className={`text-3xl font-bold ${priceCalculation.hasDiscount ? 'text-green-600' : 'text-blue-600'}`}>
+                          {formatPrice(priceCalculation.discountedTotal)}
+                        </span>
+                      </div>
                       
-                      <p className="text-sm text-gray-600 mt-3">
+                      <p className="text-sm text-gray-600 mt-4 text-center">
                         Quantity: 1 ticket per schedule ({selectedRecurringTickets.length} schedules)
                         {selectedAddOns.length > 0 && (
                           <span> • {selectedAddOns.length} add-on(s) selected</span>
                         )}
                       </p>
-                    </>
+                    </div>
                   )
                 })()}
               </div>
