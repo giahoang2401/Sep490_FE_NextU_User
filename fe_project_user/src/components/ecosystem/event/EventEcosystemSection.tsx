@@ -1,21 +1,66 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Calendar, ArrowRight, Star } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { mockEvents, eventCategories } from '@/data/ecosystem/event-data'
+import { TransformedEvent } from '@/data/ecosystem/event-api'
 import EventEcosystemCard from './EventEcosystemCard'
 import Link from 'next/link'
 
 export default function EventEcosystemSection() {
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
+  const [events, setEvents] = useState<TransformedEvent[]>([])
+  const [loading, setLoading] = useState(true)
   
-  const featuredEvents = mockEvents.filter(event => event.featured).slice(0, 3)
+  // Simple category system for now - can be enhanced with API data later
+  const categories = [
+    { key: 'all', name: 'Tất cả', icon: '🌟' },
+    { key: 'health-fitness', name: 'Sức khỏe & Thể chất', icon: '💪' },
+    { key: 'culture-social', name: 'Văn hoá & Xã hội', icon: '👥' },
+    { key: 'creative-arts', name: 'Sáng tạo & Nghệ thuật', icon: '🎨' },
+    { key: 'entertainment-relaxation', name: 'Giải trí & Thư giãn', icon: '☕' },
+    { key: 'business', name: 'Doanh nghiệp', icon: '💼' },
+    { key: 'other', name: 'Khác', icon: '⚡' }
+  ]
+  
+  useEffect(() => {
+    const fetchEvents = async () => {
+      try {
+        // TODO: Replace with actual API endpoint
+        const response = await fetch('/api/events')
+        if (response.ok) {
+          const data = await response.json()
+          setEvents(data)
+        } else {
+          console.error('Failed to fetch events')
+          setEvents([])
+        }
+      } catch (error) {
+        console.error('Error fetching events:', error)
+        setEvents([])
+      } finally {
+        setLoading(false)
+      }
+    }
+    
+    fetchEvents()
+  }, [])
+  
+  const featuredEvents = events.filter(event => event.isPublished).slice(0, 3)
   
   const filteredEvents = selectedCategory === 'all' 
     ? featuredEvents 
-    : featuredEvents.filter(event => event.category === selectedCategory)
+    : featuredEvents.filter(event => {
+        // Simple category matching - can be enhanced with proper API category mapping
+        const eventCategoryName = event.category.name.toLowerCase()
+        if (selectedCategory === 'health-fitness') return eventCategoryName.includes('yoga') || eventCategoryName.includes('fitness') || eventCategoryName.includes('health')
+        if (selectedCategory === 'culture-social') return eventCategoryName.includes('cooking') || eventCategoryName.includes('language') || eventCategoryName.includes('culture')
+        if (selectedCategory === 'creative-arts') return eventCategoryName.includes('art') || eventCategoryName.includes('photography') || eventCategoryName.includes('music')
+        if (selectedCategory === 'entertainment-relaxation') return eventCategoryName.includes('movie') || eventCategoryName.includes('dance') || eventCategoryName.includes('relaxation')
+        if (selectedCategory === 'business') return eventCategoryName.includes('business') || eventCategoryName.includes('networking') || eventCategoryName.includes('startup')
+        return true // 'other' category
+      })
 
   return (
     <section className="py-16 bg-gradient-to-br from-blue-50 via-white to-purple-50">
@@ -40,14 +85,14 @@ export default function EventEcosystemSection() {
             >
               Tất cả
             </Badge>
-            {Object.entries(eventCategories).map(([key, category]) => (
+            {categories.slice(1).map((category) => (
               <Badge
-                key={key}
-                variant={selectedCategory === key ? 'default' : 'secondary'}
+                key={category.key}
+                variant={selectedCategory === category.key ? 'default' : 'secondary'}
                 className="cursor-pointer hover:bg-blue-100"
-                onClick={() => setSelectedCategory(key)}
+                onClick={() => setSelectedCategory(category.key)}
               >
-                <category.icon className="h-3 w-3 mr-1" />
+                <span className="mr-1">{category.icon}</span>
                 {category.name}
               </Badge>
             ))}
@@ -55,11 +100,21 @@ export default function EventEcosystemSection() {
         </div>
 
         {/* Events Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
-          {filteredEvents.map((event) => (
-            <EventEcosystemCard key={event.id} event={event} />
-          ))}
-        </div>
+        {loading ? (
+          <div className="text-center py-12">
+            <div className="text-gray-500">Đang tải sự kiện...</div>
+          </div>
+        ) : filteredEvents.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
+            {filteredEvents.map((event) => (
+              <EventEcosystemCard key={event.id} event={event} />
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-12">
+            <div className="text-gray-500">Không có sự kiện nào được tìm thấy</div>
+          </div>
+        )}
 
         {/* CTA */}
         <div className="text-center">
