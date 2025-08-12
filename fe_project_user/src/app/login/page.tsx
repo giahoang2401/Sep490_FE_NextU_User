@@ -57,41 +57,59 @@ export default function LoginPage() {
         }
       );
 
+      console.log("Full API Response:", response); // Debug log
       const data = response.data;
+      console.log("API Response data:", data); // Debug log
 
-      if (!data || !data.access_token) {
-        setError("Login failed: No access_token returned from server.");
+      // Check for different possible token field names
+      const accessToken = data.access_token || data.accessToken || data.token;
+      const refreshToken = data.refresh_token || data.refreshToken;
+
+      if (!data || !accessToken) {
+        console.error("No access token found in response:", data); // Debug log
+        setError("Login failed: No access token returned from server.");
         setIsLoading(false);
         return;
       }
+
       // Store tokens based on remember me preference
       if (rememberMe) {
-        localStorage.setItem("access_token", data.access_token);
-        localStorage.setItem("refresh_token", data.refresh_token);
+        localStorage.setItem("access_token", accessToken);
+        localStorage.setItem("refresh_token", refreshToken);
         localStorage.setItem("nextU_user", JSON.stringify({
-          name: data.full_name || "User",
-          email: data.email,
-          role: data.role,
-          user_id: data.user_id,
+          name: data.full_name || data.name || "User",
+          email: data.email || email,
+          role: data.role || "user",
+          user_id: data.user_id || data.id,
           location_id: data.location_id,
         }));
+        console.log("Tokens saved to localStorage"); // Debug log
       } else {
-        sessionStorage.setItem("access_token", data.access_token);
-        sessionStorage.setItem("refresh_token", data.refresh_token);
+        sessionStorage.setItem("access_token", accessToken);
+        sessionStorage.setItem("refresh_token", refreshToken);
         sessionStorage.setItem("nextU_user", JSON.stringify({
-          name: data.full_name || "User",
-          email: data.email,
-          role: data.role,
-          user_id: data.user_id,
+          name: data.full_name || data.name || "User",
+          email: data.email || email,
+          role: data.role || "user",
+          user_id: data.user_id || data.id,
           location_id: data.location_id,
         }));
+        console.log("Tokens saved to sessionStorage"); // Debug log
       }
 
+      // Also save to auth context
       login({
-        name: data.full_name || "User",
-        email: data.email,
-        accessToken: data.access_token,
+        name: data.full_name || data.name || "User",
+        email: data.email || email,
+        accessToken: accessToken,
       });
+
+      // Always save access token to localStorage for immediate access
+      localStorage.setItem("access_token", accessToken);
+      if (refreshToken) {
+        localStorage.setItem("refresh_token", refreshToken);
+      }
+      console.log("Access token saved to localStorage for immediate access"); // Debug log
 
       router.push("/");
     } catch (err: any) {
