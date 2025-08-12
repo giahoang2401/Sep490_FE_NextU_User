@@ -92,8 +92,8 @@ export function transformApiEvent(apiEvent: ApiEvent): TransformedEvent {
     agenda: apiEvent.agenda,
     instructorName: apiEvent.instructorName,
     phoneNumber: apiEvent.phoneNumber,
-    // Mock data
-    image: randomImage,
+    // Use API imageUrl if available, otherwise fall back to mock image
+    image: apiEvent.imageUrl || randomImage,
     images: [randomImage, randomImage, randomImage],
     amenities: ['WiFi', 'Refreshments', 'Materials', 'Certificate'],
     capacity: {

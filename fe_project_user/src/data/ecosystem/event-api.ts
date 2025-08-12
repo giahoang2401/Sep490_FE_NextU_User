@@ -8,6 +8,7 @@ export interface ApiEvent {
   agenda: string | null
   instructorName: string | null
   phoneNumber: string
+  imageUrl: string
   categoryId: number
   categoryName: string
   levelId: number
