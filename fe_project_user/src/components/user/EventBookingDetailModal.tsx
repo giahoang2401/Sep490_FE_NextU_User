@@ -36,7 +36,16 @@ interface UsageDetail {
   useDate: string
   ticketTypeId: string
   ticketTypeName: string
+  originalUnitPrice: number
+  earlyBirdDiscountAmount: number
+  earlyBirdDiscountPercent: number
+  comboDiscountAmount: number
+  comboDiscountPercent: number
+  totalDiscountAmount: number
+  finalUnitPrice: number
   unitPrice: number
+  appliedRule: string
+  lockedUnitPrice: number
 }
 
 interface EventBooking {
@@ -141,14 +150,9 @@ export default function EventBookingDetailModal({
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <div className="flex items-center justify-between">
-            <DialogTitle className="text-xl font-semibold">
-              Booking Details
-            </DialogTitle>
-            <Button variant="ghost" size="sm" onClick={onClose}>
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
+          <DialogTitle className="text-xl font-semibold">
+            Booking Details
+          </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-6">
@@ -219,65 +223,132 @@ export default function EventBookingDetailModal({
                           </div>
                         </div>
                         <div className="text-right">
-                          <span className="font-medium text-gray-900">
-                            {formatPrice(usage.unitPrice)}
-                          </span>
+                          <div className="space-y-1">
+                            {usage.originalUnitPrice !== usage.unitPrice && (
+                              <div className="text-xs text-gray-500 line-through">
+                                {formatPrice(usage.originalUnitPrice)}
+                              </div>
+                            )}
+                            <span className="font-medium text-gray-900">
+                              {formatPrice(usage.unitPrice)}
+                            </span>
+                          </div>
                         </div>
                       </div>
+                      
+                      {/* Discount Information */}
+                      {usage.totalDiscountAmount > 0 && (
+                        <div className="mt-3 pt-3 border-t border-gray-200">
+                          <div className="text-xs text-gray-600 mb-2">Applied Discounts:</div>
+                          <div className="space-y-1">
+                            {usage.earlyBirdDiscountAmount > 0 && (
+                              <div className="flex justify-between text-xs">
+                                <span className="text-green-600">Early Bird ({usage.earlyBirdDiscountPercent}%)</span>
+                                <span className="text-green-600">-{formatPrice(usage.earlyBirdDiscountAmount)}</span>
+                              </div>
+                            )}
+                            {usage.comboDiscountAmount > 0 && (
+                              <div className="flex justify-between text-xs">
+                                <span className="text-blue-600">Combo Discount ({usage.comboDiscountPercent}%)</span>
+                                <span className="text-blue-600">-{formatPrice(usage.comboDiscountAmount)}</span>
+                              </div>
+                            )}
+                            <div className="flex justify-between text-xs font-medium">
+                              <span>Total Savings:</span>
+                              <span className="text-green-600">-{formatPrice(usage.totalDiscountAmount)}</span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
               </div>
 
-              {/* Summary */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                {/* Booking Summary */}
-                <div className="space-y-4">
-                  <h4 className="font-semibold text-gray-900">Booking Summary</h4>
-                  <div className="space-y-3">
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Type:</span>
-                      <span className="font-medium">{booking.isCombo ? 'Combo Package' : 'Single Ticket'}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Quantity:</span>
-                      <span className="font-medium">{booking.quantity}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Sessions:</span>
-                      <span className="font-medium">{booking.usageDetails.length}</span>
-                    </div>
-                    <Separator />
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Ticket Total:</span>
-                      <span className="font-medium">{formatPrice(booking.ticketAmount)}</span>
-                    </div>
-                  </div>
-                </div>
+                             {/* Summary */}
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                 {/* Booking Summary */}
+                 <div className="space-y-4">
+                   <h4 className="font-semibold text-gray-900">Booking Summary</h4>
+                   <div className="space-y-3">
+                     <div className="flex justify-between">
+                       <span className="text-gray-600">Type:</span>
+                       <span className="font-medium">{booking.isCombo ? 'Combo Package' : 'Single Ticket'}</span>
+                     </div>
+                     <div className="flex justify-between">
+                       <span className="text-gray-600">Quantity:</span>
+                       <span className="font-medium">{booking.quantity}</span>
+                     </div>
+                     <div className="flex justify-between">
+                       <span className="text-gray-600">Sessions:</span>
+                       <span className="font-medium">{booking.usageDetails.length}</span>
+                     </div>
+                     
+                     {/* Total Discount Summary */}
+                     {(() => {
+                       const totalOriginalAmount = booking.usageDetails.reduce((sum, usage) => sum + usage.originalUnitPrice, 0);
+                       const totalDiscountAmount = booking.usageDetails.reduce((sum, usage) => sum + usage.totalDiscountAmount, 0);
+                       return totalDiscountAmount > 0 ? (
+                         <>
+                           <Separator />
+                           <div className="flex justify-between text-sm">
+                             <span className="text-gray-600">Original Amount:</span>
+                             <span className="text-gray-500 line-through">{formatPrice(totalOriginalAmount)}</span>
+                           </div>
+                           <div className="flex justify-between text-sm">
+                             <span className="text-gray-600">Total Savings:</span>
+                             <span className="text-green-600 font-medium">-{formatPrice(totalDiscountAmount)}</span>
+                           </div>
+                         </>
+                       ) : null;
+                     })()}
+                     
+                     <Separator />
+                     <div className="flex justify-between">
+                       <span className="text-gray-600">Ticket Total:</span>
+                       <span className="font-medium">{formatPrice(booking.ticketAmount)}</span>
+                     </div>
+                   </div>
+                 </div>
 
-                {/* Add-ons */}
-                {booking.addOns.length > 0 && (
-                  <div className="space-y-4">
-                    <h4 className="font-semibold text-gray-900">Add-ons</h4>
-                    <div className="space-y-3">
-                      {booking.addOns.map((addon) => (
-                        <div key={addon.addOnId} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                          <div>
-                            <p className="font-medium text-sm">{addon.name}</p>
-                            <p className="text-xs text-gray-600">Qty: {addon.quantity}</p>
-                          </div>
-                          <span className="font-medium text-sm">{formatPrice(addon.unitPrice * addon.quantity)}</span>
-                        </div>
-                      ))}
-                      <Separator />
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Add-ons Total:</span>
-                        <span className="font-medium">{formatPrice(booking.addOnAmount)}</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
+                 {/* Add-ons */}
+                 <div className="space-y-4">
+                   <h4 className="font-semibold text-gray-900">Add-ons</h4>
+                   <div className="space-y-3">
+                     {booking.addOns.length > 0 ? (
+                       <>
+                         {booking.addOns.map((addon) => (
+                           <div key={addon.addOnId} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                             <div>
+                               <p className="font-medium text-sm">{addon.name}</p>
+                               <div className="flex items-center space-x-2 text-xs text-gray-600">
+                                 <span>Qty: {addon.quantity}</span>
+                                 <span className="text-gray-400">•</span>
+                                 <span>{formatPrice(addon.unitPrice)} each</span>
+                               </div>
+                             </div>
+                             <div className="text-right">
+                               <div className="text-sm font-medium">{formatPrice(addon.unitPrice * addon.quantity)}</div>
+                               <div className="text-xs text-gray-500">
+                                 {addon.quantity > 1 && `${addon.quantity} × ${formatPrice(addon.unitPrice)}`}
+                               </div>
+                             </div>
+                           </div>
+                         ))}
+                         <Separator />
+                         <div className="flex justify-between">
+                           <span className="text-gray-600">Add-ons Total:</span>
+                           <span className="font-medium">{formatPrice(booking.addOnAmount)}</span>
+                         </div>
+                       </>
+                     ) : (
+                       <div className="p-3 bg-gray-50 rounded-lg text-center">
+                         <p className="text-sm text-gray-500">No add-ons selected</p>
+                       </div>
+                     )}
+                   </div>
+                 </div>
+               </div>
 
               {/* Total Amount */}
               <div className="mt-6 pt-4 border-t">
@@ -289,48 +360,56 @@ export default function EventBookingDetailModal({
 
               {/* Actions */}
               <div className="mt-6 pt-4 border-t">
-                <div className="flex flex-wrap gap-2">
-                  {booking.status === 'Pending' && (
-                    <>
-                      {onCancel && (
-                        <Button 
-                          variant="outline"
-                          size="sm" 
-                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                          onClick={handleCancelNow}
-                          disabled={processingCancel === booking.purchaseId}
-                        >
-                          {processingCancel === booking.purchaseId ? (
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                          ) : (
-                            <Trash2 className="h-4 w-4 mr-2" />
-                          )}
-                          Cancel Booking
-                        </Button>
-                      )}
-                      {onPayment && (
-                        <Button 
-                          size="sm" 
-                          className="bg-blue-600 hover:bg-blue-700"
-                          onClick={handlePayNow}
-                          disabled={processingPayment === booking.purchaseId}
-                        >
-                          {processingPayment === booking.purchaseId ? (
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                          ) : (
-                            <CreditCard className="h-4 w-4 mr-2" />
-                          )}
-                          {processingPayment === booking.purchaseId ? 'Processing...' : 'Pay Now'}
-                        </Button>
-                      )}
-                    </>
-                  )}
-                  {booking.status === 'Paid' && (
-                    <Button variant="outline" size="sm">
-                      <Download className="h-4 w-4 mr-2" />
-                      Download Receipt
-                    </Button>
-                  )}
+                <div className="flex flex-wrap gap-2 justify-between items-center">
+                  <div className="flex flex-wrap gap-2">
+                    {booking.status === 'Pending' && (
+                      <>
+                        {onCancel && (
+                          <Button 
+                            variant="outline"
+                            size="sm" 
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            onClick={handleCancelNow}
+                            disabled={processingCancel === booking.purchaseId}
+                          >
+                            {processingCancel === booking.purchaseId ? (
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-4 w-4 mr-2" />
+                            )}
+                            Cancel Booking
+                          </Button>
+                        )}
+                        {onPayment && (
+                          <Button 
+                            size="sm" 
+                            className="bg-blue-600 hover:bg-blue-700"
+                            onClick={handlePayNow}
+                            disabled={processingPayment === booking.purchaseId}
+                          >
+                            {processingPayment === booking.purchaseId ? (
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            ) : (
+                              <CreditCard className="h-4 w-4 mr-2" />
+                            )}
+                            {processingPayment === booking.purchaseId ? 'Processing...' : 'Pay Now'}
+                          </Button>
+                        )}
+                      </>
+                    )}
+                    {booking.status === 'Paid' && (
+                      <Button variant="outline" size="sm">
+                        <Download className="h-4 w-4 mr-2" />
+                        Download Receipt
+                      </Button>
+                    )}
+                  </div>
+                  
+                  {/* Close Button */}
+                  <Button variant="outline" size="sm" onClick={onClose}>
+                    <X className="h-4 w-4 mr-2" />
+                    Close
+                  </Button>
                 </div>
               </div>
             </CardContent>

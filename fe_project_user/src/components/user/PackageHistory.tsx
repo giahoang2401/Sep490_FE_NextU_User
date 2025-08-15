@@ -2,37 +2,68 @@
 
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
-import { Package, MapPin, Clock, CheckCircle, CreditCard, XCircle, Download, QrCode, Layers, ChevronDown, Check } from "lucide-react"
+import { Package, MapPin, Clock, CheckCircle, CreditCard, XCircle, User, Calendar, DollarSign, FileText, Home, X } from "lucide-react"
 import { PaymentModal } from "@/components/payment-modal"
 import api from '@/utils/axiosConfig'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog as ConfirmDialog, DialogContent as ConfirmDialogContent, DialogHeader as ConfirmDialogHeader, DialogTitle as ConfirmDialogTitle, DialogDescription as ConfirmDialogDescription } from "@/components/ui/dialog"
 
 interface PackageHistory {
   requestId: string;
   fullName: string;
+  originalPrice: number;
   requestedPackageName: string;
   packageType: string;
-  amount: number;
+  finalPrice: number;
+  expireAt?: string;
+  startDate?: string;
   status: string;
   paymentStatus: string;
-  paymentMethod: string;
+  paymentMethod?: string;
   paymentTime?: string;
   staffNote?: string;
   approvedAt?: string;
-  messageToStaff?: string;
+  packageId: string;
   createdAt: string;
   locationName: string;
-  moveInDate?: string;
-  expireAt?: string;
-  startDate?: string;
-  services?: any[]; // Added for combo packages
-  packageId?: string; // Thêm dòng này để fix linter
+  discountRate?: number;
+  discountAmount?: number;
+  roomInstanceId?: string;
+}
+
+interface BasicPlanDetail {
+  id: string;
+  basicPlanTypeCode: string;
+  entitlements: any[];
+  planDurations: Array<{
+    planDurationDescription: string;
+  }>;
+  planSource: string;
+}
+
+interface RoomDetail {
+  id: string;
+  roomCode: string;
+  roomName: string;
+  descriptionDetails: string;
+  status: string;
+  areaInSquareMeters: number;
+  roomSizeName: string;
+  roomViewName: string;
+  roomFloorName: string;
+  bedTypeName: string;
+  numberOfBeds: number;
+  roomTypeName: string;
+  medias: Array<{
+    id: string;
+    url: string;
+    type: string;
+    description: string;
+  }>;
 }
 
 export default function PackageList() {
@@ -40,14 +71,17 @@ export default function PackageList() {
   const [showPaymentModal, setShowPaymentModal] = useState(false)
   const [selectedPackage, setSelectedPackage] = useState<PackageHistory | null>(null)
   const [loading, setLoading] = useState(true)
+  
+  // Single detail modal state
   const [showDetail, setShowDetail] = useState(false)
-  const [detailPackage, setDetailPackage] = useState<PackageHistory | null>(null)
+  const [selectedRequest, setSelectedRequest] = useState<PackageHistory | null>(null)
+  const [basicPlanDetail, setBasicPlanDetail] = useState<BasicPlanDetail | null>(null)
+  const [roomDetail, setRoomDetail] = useState<RoomDetail | null>(null)
+  
   const [tab, setTab] = useState('all')
   const [detailLoading, setDetailLoading] = useState(false)
-  const [detailData, setDetailData] = useState<any>(null)
-  const [expandedBasicPlans, setExpandedBasicPlans] = useState<{ [id: string]: boolean }>({})
-  const [basicPlanDetails, setBasicPlanDetails] = useState<{ [id: string]: any }>({})
-  const [loadingBasicDetail, setLoadingBasicDetail] = useState<{ [id: string]: boolean }>({})
+  const [currentImageIndex, setCurrentImageIndex] = useState(0)
+  
   const [showCancelDialog, setShowCancelDialog] = useState(false)
   const [canceling, setCanceling] = useState(false)
   const [cancelSuccess, setCancelSuccess] = useState(false)
@@ -68,97 +102,19 @@ export default function PackageList() {
     fetchHistory()
   }, [])
 
-  // Fetch detail when showDetail changes
-  useEffect(() => {
-    async function fetchDetail() {
-      if (!showDetail || !detailPackage) return;
-      setDetailLoading(true)
-      setDetailData(null)
-      try {
-        if (detailPackage.packageType?.toLowerCase() === 'basic') {
-          const res = await api.get(`/api/membership/BasicPlans/${detailPackage.packageId}`)
-          setDetailData(res.data)
-        } else if (detailPackage.packageType?.toLowerCase() === 'combo') {
-          const res = await api.get(`/api/membership/ComboPlans/${detailPackage.packageId}`)
-          const combo = res.data
-          // Fetch all basic plans in combo
-          if (combo.basicPlanIds && combo.basicPlanIds.length > 0) {
-            const basicDetails = await Promise.all(
-              combo.basicPlanIds.map((id: string) => api.get(`/api/membership/BasicPlans/${id}`).then(r => r.data))
-            )
-            combo.basicPlans = basicDetails
-          }
-          setDetailData(combo)
-        }
-      } catch (e) {
-        setDetailData(null)
-      } finally {
-        setDetailLoading(false)
-      }
-    }
-    fetchDetail()
-  }, [showDetail, detailPackage])
-
-  // Fetch accommodation or entitlement info for a basic plan (dùng cho cả basic lẻ)
-  async function fetchBasicPlanDetail(basic: any) {
-    if (!basic || !basic.id) return;
-    setLoadingBasicDetail(prev => ({ ...prev, [basic.id]: true }))
-    try {
-      let detail: any = {}
-      // Nếu có acom, fetch accom detail
-      if (basic.acomodations && Array.isArray(basic.acomodations) && basic.acomodations.length > 0) {
-        const accomDetails = await Promise.all(
-          basic.acomodations.map(async (a: any) => {
-            if (a.accomodationId) {
-              const res = await api.get(`/api/membership/AccommodationOptions/${a.accomodationId}`)
-              return res.data
-            }
-            return null
-          })
-        )
-        detail.acomodations = accomDetails.filter(Boolean)
-      }
-      // Nếu là entitlement, fetch entitlement detail
-      if (basic.basicPlanTypeCode === 'LIFEACTIVITIES' && basic.entitlements && Array.isArray(basic.entitlements) && basic.entitlements.length > 0) {
-        const entDetails = await Promise.all(
-          basic.entitlements.map(async (e: any) => {
-            if (e.entitlementId) {
-              const res = await api.get(`/api/membership/EntitlementRule/${e.entitlementId}`)
-              return res.data
-            }
-            return null
-          })
-        )
-        detail.entitlements = entDetails.filter(Boolean)
-      }
-      setBasicPlanDetails(prev => ({ ...prev, [basic.id]: detail }))
-    } catch {
-      setBasicPlanDetails(prev => ({ ...prev, [basic.id]: null }))
-    } finally {
-      setLoadingBasicDetail(prev => ({ ...prev, [basic.id]: false }))
-    }
-  }
-
-  function handleToggleBasicCollapse(basic: any) {
-    setExpandedBasicPlans(prev => {
-      const next = { ...prev, [basic.id]: !prev[basic.id] }
-      if (!prev[basic.id] && !basicPlanDetails[basic.id]) {
-        fetchBasicPlanDetail(basic)
-      }
-      return next
-    })
-  }
-
   const getStatusColor = (status: string) => {
-    switch (status) {
+    switch (status?.toLowerCase()) {
       case "pending":
         return "bg-yellow-500"
+      case "pendingpayment":
+        return "bg-orange-500"
       case "approved":
         return "bg-green-500"
       case "rejected":
         return "bg-red-500"
-      case "paid":
-      case "Completed":
+      case "cancelled":
+        return "bg-red-600"
+      case "completed":
         return "bg-blue-500"
       default:
         return "bg-gray-500"
@@ -166,16 +122,19 @@ export default function PackageList() {
   }
 
   const getStatusIcon = (status: string) => {
-    switch (status) {
+    switch (status?.toLowerCase()) {
       case "pending":
         return <Clock className="h-4 w-4" />
+      case "pendingpayment":
+        return <CreditCard className="h-4 w-4" />
       case "approved":
         return <CheckCircle className="h-4 w-4" />
       case "rejected":
         return <XCircle className="h-4 w-4" />
-      case "paid":
-      case "Completed":
-        return <CreditCard className="h-4 w-4" />
+      case "cancelled":
+        return <XCircle className="h-4 w-4" />
+      case "completed":
+        return <CheckCircle className="h-4 w-4" />
       default:
         return <Clock className="h-4 w-4" />
     }
@@ -191,7 +150,7 @@ export default function PackageList() {
     setSelectedPackage(null)
     // Refetch history after payment
     setLoading(true)
-    api.get('/user/memberships/history').then(res => {
+    api.get('/api/user/memberships/history').then(res => {
       setPackageRequests(res.data || [])
       setLoading(false)
     })
@@ -218,9 +177,31 @@ export default function PackageList() {
     }
   }
 
-  const handleShowDetail = (pkg: PackageHistory) => {
-    setDetailPackage(pkg)
+  // Single detail modal handler
+  const handleShowDetail = async (request: PackageHistory) => {
+    setSelectedRequest(request)
     setShowDetail(true)
+    setDetailLoading(true)
+    setBasicPlanDetail(null)
+    setRoomDetail(null)
+    
+    try {
+      // Fetch package details
+      if (request.packageId) {
+        const packageRes = await api.get(`/api/membership/BasicPlans/${request.packageId}`)
+        setBasicPlanDetail(packageRes.data)
+      }
+      
+      // Fetch room details
+      if (request.roomInstanceId) {
+        const roomRes = await api.get(`/api/membership/RoomInstances/${request.roomInstanceId}`)
+        setRoomDetail(roomRes.data)
+      }
+    } catch (e) {
+      console.error('Error fetching details:', e)
+    } finally {
+      setDetailLoading(false)
+    }
   }
 
   const filterPackages = (list: PackageHistory[]) => {
@@ -230,6 +211,7 @@ export default function PackageList() {
       case 'pending': return list.filter(p => p.status?.toLowerCase() === 'pending')
       case 'pendingpayment': return list.filter(p => p.status?.toLowerCase() === 'pendingpayment')
       case 'completed': return list.filter(p => p.status?.toLowerCase() === 'completed')
+      case 'cancelled': return list.filter(p => p.status?.toLowerCase() === 'cancelled')
       default: return list
     }
   }
@@ -268,17 +250,18 @@ export default function PackageList() {
   const pendingPayment = packageRequests.filter(p => p.status?.toLowerCase() === 'pendingpayment').length;
   const completed = packageRequests.filter(p => p.status?.toLowerCase() === 'completed').length;
   const processing = packageRequests.filter(p => p.status?.toLowerCase() === 'pending' || p.status?.toLowerCase() === 'approved').length;
+  const cancelled = packageRequests.filter(p => p.status?.toLowerCase() === 'cancelled').length;
 
   return (
-    <div className="space-y-6 w-full max-w-full px-0 md:px-2"> {/* max-w-full để đồng bộ với layout ngoài */}
+    <div className="space-y-6 w-full max-w-full px-0 md:px-2">
       {/* Dashboard thống kê */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4 mb-6">
         <div className="rounded-2xl bg-gradient-to-br from-blue-400 to-blue-600 text-white flex flex-col items-center justify-center py-6 shadow">
           <span className="text-4xl mb-2">📦</span>
           <span className="text-3xl font-bold">{totalPackages}</span>
           <span className="text-base mt-1">Total Packages</span>
         </div>
-        <div className="rounded-2xl bg-gradient-to-br from-yellow-300 to-yellow-500 text-white flex flex-col items-center justify-center py-6 shadow">
+        <div className="rounded-2xl bg-gradient-to-br from-orange-300 to-orange-500 text-white flex flex-col items-center justify-center py-6 shadow">
           <span className="text-4xl mb-2">⏳</span>
           <span className="text-3xl font-bold">{pendingPayment}</span>
           <span className="text-base mt-1">Pending Payment</span>
@@ -293,20 +276,13 @@ export default function PackageList() {
           <span className="text-3xl font-bold">{processing}</span>
           <span className="text-base mt-1">Processing</span>
         </div>
+        <div className="rounded-2xl bg-gradient-to-br from-red-400 to-red-600 text-white flex flex-col items-center justify-center py-6 shadow">
+          <span className="text-4xl mb-2">❌</span>
+          <span className="text-3xl font-bold">{cancelled}</span>
+          <span className="text-base mt-1">Cancelled</span>
+        </div>
       </div>
-      {/* Filter/search bar placeholder (nếu muốn thêm sau) */}
-      {/* <div className="rounded-xl bg-white shadow p-4 flex flex-col md:flex-row gap-2 items-center mb-4">
-        <input className="flex-1 border rounded-lg px-4 py-2" placeholder="Search packages, locations.." />
-        <select className="border rounded-lg px-3 py-2">
-          <option>All Status</option>
-        </select>
-        <select className="border rounded-lg px-3 py-2">
-          <option>All Types</option>
-        </select>
-        <select className="border rounded-lg px-3 py-2">
-          <option>All Time</option>
-        </select>
-      </div> */}
+
       <Tabs value={tab} onValueChange={setTab} className="mb-4">
         <TabsList>
           <TabsTrigger value="all">All</TabsTrigger>
@@ -315,8 +291,10 @@ export default function PackageList() {
           <TabsTrigger value="pending">Pending</TabsTrigger>
           <TabsTrigger value="pendingpayment">Pending Payment</TabsTrigger>
           <TabsTrigger value="completed">Completed</TabsTrigger>
+          <TabsTrigger value="cancelled">Cancelled</TabsTrigger>
         </TabsList>
       </Tabs>
+
       {filterPackages(packageRequests).length === 0 ? (
         <Card className="rounded-2xl border-0 shadow-lg w-full">
           <CardContent className="p-12 text-center">
@@ -328,281 +306,456 @@ export default function PackageList() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 w-full">
           {filterPackages(packageRequests).map((request) => (
-            <Card key={request.requestId} className={`w-full h-full flex flex-col justify-between rounded-2xl border-0 shadow-lg cursor-pointer transition hover:shadow-xl ${request.packageType?.toLowerCase() === 'combo' ? 'bg-purple-50' : 'bg-blue-50'}`} onClick={() => handleShowDetail(request)}>
+            <Card key={request.requestId} className="w-full h-full flex flex-col justify-between rounded-2xl border-0 shadow-lg cursor-pointer transition hover:shadow-xl bg-gradient-to-br from-blue-50 to-indigo-50" onClick={() => handleShowDetail(request)}>
               <CardHeader className="p-6 pb-2">
-                {/* Badge trạng thái lên trên cùng, full width, căn phải */}
-                <div className="flex justify-end w-full mb-2">
-                  <Badge className={
-                    `${
-                      request.packageType?.toLowerCase() === 'combo' && request.status?.toLowerCase() === 'pending'
-                        ? 'bg-purple-500'
-                        : getStatusColor(request.status)
-                    } text-white text-xs px-3 py-1`}
-                  >
+                {/* Status Badge */}
+                <div className="flex justify-end w-full mb-3">
+                  <Badge className={`${getStatusColor(request.status)} text-white text-xs px-3 py-1`}>
                     {getStatusIcon(request.status)}
                     <span className="ml-1 capitalize">{request.status}</span>
                   </Badge>
                 </div>
-                <div className="flex items-center gap-3 w-full">
-                  {/* Icon */}
-                  {request.packageType?.toLowerCase() === 'combo'
-                    ? <Layers className="h-8 w-8 text-purple-500" />
-                    : <Package className="h-8 w-8 text-blue-500" />}
-                  {/* Badge loại package */}
-                  <Badge className={`text-xs px-3 py-1 ${request.packageType?.toLowerCase() === 'combo' ? 'bg-purple-500' : 'bg-blue-500'} text-white`}>
+
+                {/* Package Header */}
+                <div className="flex items-center gap-3 w-full mb-3">
+                  <Package className="h-8 w-8 text-blue-500" />
+                  <Badge className="text-xs px-3 py-1 bg-blue-500 text-white">
                     {request.packageType?.toUpperCase()}
                   </Badge>
-                  {/* Tên package */}
                   <CardTitle className="text-lg font-bold break-words flex-1">
                     {request.requestedPackageName}
                   </CardTitle>
                 </div>
-                <p className="text-slate-600 capitalize text-sm flex items-center gap-1 mt-1">
-                  <MapPin className="h-4 w-4" />{request.locationName}
+
+                {/* Location */}
+                <p className="text-slate-600 text-sm flex items-center gap-1 mb-3">
+                  <MapPin className="h-4 w-4" />
+                  {request.locationName}
                 </p>
+
+                {/* User Info */}
+                <div className="flex items-center gap-2 mb-3">
+                  <User className="h-4 w-4 text-slate-500" />
+                  <span className="text-sm font-medium text-slate-700">{request.fullName}</span>
+                </div>
               </CardHeader>
-              <CardContent className="space-y-2 pt-0 flex-1 flex flex-col justify-between">
-                <div className="grid grid-cols-2 gap-x-4 gap-y-1 mb-2">
-                  <div>
-                    <span className="block text-xs text-slate-500">Amount</span>
-                    <span className="font-bold text-base break-words">₫{request.amount?.toLocaleString()}</span>
+
+              <CardContent className="space-y-3 pt-0 flex-1">
+                {/* Pricing Information */}
+                <div className="bg-white rounded-lg p-3 border">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-xs text-slate-500">Original Price</span>
+                    <span className="text-sm font-semibold text-slate-700">₫{request.originalPrice?.toLocaleString()}</span>
                   </div>
-                  <div>
-                    <span className="block text-xs text-slate-500">Purchase Date</span>
-                    <span className="font-bold text-base">{new Date(request.createdAt).toLocaleDateString()}</span>
-                  </div>
-                  <div>
-                    <span className="block text-xs text-slate-500">Start Date</span>
-                    <span className="font-bold text-base">{request.startDate ? new Date(request.startDate).toLocaleDateString() : '-'}</span>
-                  </div>
-                  <div>
-                    <span className="block text-xs text-slate-500">Expire At</span>
-                    <span className="font-bold text-base">{request.expireAt ? new Date(request.expireAt).toLocaleDateString() : '-'}</span>
-                  </div>
-                  <div className="col-span-2">
-                    <span className="block text-xs text-slate-500">Payment Method</span>
-                    <span className="font-bold text-base">{request.paymentMethod || '-'}</span>
+                  <div className="border-t pt-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-bold text-slate-800">Final Price</span>
+                      <span className="text-lg font-bold text-blue-600">₫{request.finalPrice?.toLocaleString()}</span>
+                    </div>
                   </div>
                 </div>
-                {/* Nếu là combo, hiển thị dịch vụ/phòng đi kèm nếu có */}
-                {request.packageType?.toLowerCase() === 'combo' && request.services && request.services.length > 0 && (
-                  <div className="mt-2">
-                    <span className="block text-xs text-purple-700 font-semibold mb-1">Included Services:</span>
-                    <ul className="list-disc list-inside text-sm text-purple-900">
-                      {request.services.map((s: any, idx: number) => <li key={idx}>{s.name}</li>)}
-                    </ul>
+
+                {/* Dates */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="text-center bg-white rounded-lg p-2 border">
+                    <Calendar className="h-4 w-4 text-slate-500 mx-auto mb-1" />
+                    <span className="block text-xs text-slate-500">Start Date</span>
+                    <span className="text-sm font-semibold text-slate-700">
+                      {request.startDate ? new Date(request.startDate).toLocaleDateString() : '-'}
+                    </span>
                   </div>
-                )}
-                {/* Completed Package */}
+                  <div className="text-center bg-white rounded-lg p-2 border">
+                    <Clock className="h-4 w-4 text-slate-500 mx-auto mb-1" />
+                    <span className="block text-xs text-slate-500">Expire Date</span>
+                    <span className="text-sm font-semibold text-slate-700">
+                      {request.expireAt ? new Date(request.expireAt).toLocaleDateString() : '-'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Status-specific content */}
                 {request.status?.toLowerCase() === "completed" && (
-                  <div className="space-y-2 mt-2">
-                    <Alert className="bg-blue-50 border-blue-200">
-                      <CheckCircle className="h-4 w-4" />
-                      <AlertDescription>Payment completed. Welcome to Next Universe!</AlertDescription>
-                    </Alert>
-                    {request.paymentTime && (
-                      <p className="text-xs text-blue-700 ml-1">Paid at: {new Date(request.paymentTime).toLocaleString()}</p>
-                    )}
-                  </div>
+                  <Alert className="bg-green-50 border-green-200">
+                    <CheckCircle className="h-4 w-4" />
+                    <AlertDescription>Payment completed. Welcome to Next Universe!</AlertDescription>
+                  </Alert>
                 )}
-                {/* Pending Payment - cho cả basic và combo */}
+
                 {request.status?.toLowerCase() === 'pendingpayment' && (
-                  <div className="space-y-2 mt-2">
-                    <Alert className="bg-yellow-50 border-yellow-200">
-                      <Clock className="h-4 w-4" />
-                      <AlertDescription>Your package is pending payment. Please proceed to payment.</AlertDescription>
-                    </Alert>
-                    <Button
-                      className="rounded-full bg-blue-600 hover:bg-blue-700"
-                      onClick={e => { e.stopPropagation(); handleInitPayment(request); }}
-                    >
-                      <CreditCard className="h-4 w-4 mr-2" />
-                      Pay Now
-                    </Button>
-                  </div>
+                  <Alert className="bg-orange-50 border-orange-200">
+                    <Clock className="h-4 w-4" />
+                    <AlertDescription>Your package is pending payment. Please proceed to payment.</AlertDescription>
+                  </Alert>
                 )}
-                {/* Combo Pending (chỉ đổi màu, không có nút thanh toán) */}
-                {request.packageType?.toLowerCase() === 'combo' && request.status?.toLowerCase() === 'pending' && (
-                  <div className="space-y-2 mt-2">
-                    <Alert className="bg-purple-50 border-purple-200">
-                      <Clock className="h-4 w-4" />
-                      <AlertDescription>Your combo package is pending approval.</AlertDescription>
-                    </Alert>
-                    <p className="text-xs text-purple-700 ml-1">Waiting for staff approval.</p>
-                  </div>
-                )}
-                {/* Basic Pending (chỉ thông báo) */}
-                {request.packageType?.toLowerCase() === 'basic' && request.status?.toLowerCase() === 'pending' && (
-                  <div className="space-y-2 mt-2">
-                    <Alert className="bg-yellow-50 border-yellow-200">
-                      <Clock className="h-4 w-4" />
-                      <AlertDescription>Your basic package is pending approval.</AlertDescription>
-                    </Alert>
-                  </div>
+
+                {request.status?.toLowerCase() === 'cancelled' && (
+                  <Alert className="bg-red-50 border-red-200">
+                    <XCircle className="h-4 w-4" />
+                    <AlertDescription>This request has been cancelled.</AlertDescription>
+                  </Alert>
                 )}
               </CardContent>
+
               <CardFooter className="flex justify-end gap-2 pt-0 mt-auto">
                 {(request.status?.toLowerCase() === 'pending' || request.status?.toLowerCase() === 'pendingpayment') && (
-                  <Button variant="destructive" onClick={e => { e.stopPropagation(); handleCancelRequest(request.requestId); }}>Cancel Request</Button>
+                  <Button variant="destructive" onClick={e => { e.stopPropagation(); handleCancelRequest(request.requestId); }}>
+                    Cancel Request
+                  </Button>
                 )}
-                <Button variant="outline" onClick={e => { e.stopPropagation(); handleShowDetail(request); }}>View Details</Button>
+                {request.status?.toLowerCase() === 'pendingpayment' && (
+                  <Button 
+                    className="bg-blue-600 hover:bg-blue-700"
+                    onClick={e => { e.stopPropagation(); handleInitPayment(request); }}
+                  >
+                    <CreditCard className="h-4 w-4 mr-2" />
+                    Pay Now
+                  </Button>
+                )}
+                <Button variant="outline" onClick={e => { e.stopPropagation(); handleShowDetail(request); }}>
+                  View Details
+                </Button>
               </CardFooter>
             </Card>
           ))}
         </div>
       )}
+
       <PaymentModal
         open={showPaymentModal}
         onOpenChange={setShowPaymentModal}
         packageData={selectedPackage}
         onPaymentSuccess={handlePaymentSuccess}
       />
-      {/* Popup detail package */}
+
+      {/* Single Detail Modal - Package + Room Information */}
       <Dialog open={showDetail} onOpenChange={setShowDetail}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Package Details</DialogTitle>
-            <DialogDescription>
-              {detailLoading && <div className="text-center py-8 text-slate-400">Loading...</div>}
-              {!detailLoading && detailData && detailPackage && (
-                <div className="space-y-4 mt-2">
-                  {/* Header nổi bật: thông tin từ history */}
-                  <div className="flex items-center gap-2 mb-2">
-                    {detailPackage.packageType?.toLowerCase() === 'combo' ? <Layers className="h-6 w-6 text-purple-500" /> : <Package className="h-6 w-6 text-blue-500" />}
-                    <span className="font-bold text-xl">{detailData.name || detailPackage.requestedPackageName}</span>
-                    <Badge className={`text-xs px-2 py-1 ${detailPackage.packageType?.toLowerCase() === 'combo' ? 'bg-purple-500' : 'bg-blue-500'} text-white`}>{detailPackage.packageType?.toUpperCase()}</Badge>
+        <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader className="pb-4">
+            <DialogTitle className="text-xl font-semibold flex items-center gap-2">
+              <Package className="h-5 w-5" />
+              Package Details
+            </DialogTitle>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={() => setShowDetail(false)}
+              className="absolute right-4 top-4 h-8 w-8 p-0"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </DialogHeader>
+          
+          {detailLoading && (
+            <div className="text-center py-12 text-slate-500">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-2"></div>
+              Loading details...
+            </div>
+          )}
+          
+          {!detailLoading && selectedRequest && (
+            <div className="space-y-6">
+              {/* Request Summary with Pricing */}
+              <div className="bg-slate-50 rounded-lg p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-lg font-semibold text-slate-800">
+                    {selectedRequest.requestedPackageName}
+                  </h3>
+                  <div className="flex items-center gap-2">
+                    <Badge className={`${getStatusColor(selectedRequest.status)} text-white text-xs px-2 py-1`}>
+                      {selectedRequest.status}
+                    </Badge>
+                    <Badge variant="outline" className="text-xs px-2 py-1">
+                      {selectedRequest.packageType?.toUpperCase()}
+                    </Badge>
                   </div>
-                  <div className="flex flex-wrap gap-2 mb-2">
-                    <span className="text-xs bg-gray-100 rounded px-2 py-1">Status: <b>{detailPackage.status}</b></span>
-                    <span className="text-xs bg-gray-100 rounded px-2 py-1">Amount: <b>₫{detailPackage.amount?.toLocaleString()}</b></span>
-                    <span className="text-xs bg-gray-100 rounded px-2 py-1">Location: <b>{detailPackage.locationName}</b></span>
+                </div>
+                
+                {/* Pricing inline */}
+                <div className="flex items-center gap-6 mb-3 text-sm">
+                  <div>
+                    <span className="text-slate-500">Original:</span>
+                    <span className="ml-2 font-medium">₫{selectedRequest.originalPrice?.toLocaleString()}</span>
                   </div>
-                  <div className="grid grid-cols-2 gap-2 mb-2">
-                    <span className="text-xs">Purchase Date: <b>{new Date(detailPackage.createdAt).toLocaleDateString()}</b></span>
-                    <span className="text-xs">Start Date: <b>{detailPackage.startDate ? new Date(detailPackage.startDate).toLocaleDateString() : '-'}</b></span>
-                    <span className="text-xs">Expire At: <b>{detailPackage.expireAt ? new Date(detailPackage.expireAt).toLocaleDateString() : '-'}</b></span>
-                    <span className="text-xs">Payment Method: <b>{detailPackage.paymentMethod || '-'}</b></span>
-                    <span className="text-xs">Payment Time: <b>{detailPackage.paymentTime ? new Date(detailPackage.paymentTime).toLocaleString() : '-'}</b></span>
+                  <div>
+                    <span className="text-slate-500">Final:</span>
+                    <span className="ml-2 font-semibold text-blue-600">₫{selectedRequest.finalPrice?.toLocaleString()}</span>
                   </div>
-                  {/* Divider */}
-                  <div className="border-t border-gray-200 my-2"></div>
-                  {/* Chi tiết gói (từ api basic/comboplan) */}
-                  <div className="space-y-2">
-                    {/* Basic package detail */}
-                    {detailPackage.packageType?.toLowerCase() === 'basic' && (
-                      <>
-                        {/* Collapse detail cho basic, fetch accom/entitlement detail giống combo */}
-                        {(detailData.acomodations && Array.isArray(detailData.acomodations) && detailData.acomodations.length > 0) || (detailData.basicPlanTypeCode === 'LIFEACTIVITIES' && detailData.entitlements && Array.isArray(detailData.entitlements) && detailData.entitlements.length > 0) ? (
-                          <div className="mt-2">
-                            <span className="block text-xs text-blue-700 font-semibold mb-1">Details:</span>
-                            <div className="space-y-2">
-                              <div className="flex items-center mb-2">
-                                <Check className="h-5 w-5 text-teal-500 mr-2 flex-shrink-0" />
-                                <span className="flex items-center cursor-pointer group text-blue-900 font-semibold" onClick={() => handleToggleBasicCollapse(detailData)}>
-                                  {detailData.name}
-                                  <ChevronDown className={`h-4 w-4 ml-2 transition-transform ${expandedBasicPlans[detailData.id] ? 'rotate-180' : ''}`} />
-                                </span>
-                              </div>
-                              {expandedBasicPlans[detailData.id] && (
-                                <div className="ml-7 mt-1 text-xs text-slate-600 space-y-3">
-                                  {loadingBasicDetail[detailData.id] && <div className="text-slate-400">Loading...</div>}
-                                  {!loadingBasicDetail[detailData.id] && basicPlanDetails[detailData.id] && (
-                                    <>
-                                      {/* Hiển thị accom detail nếu có */}
-                                      {basicPlanDetails[detailData.id].acomodations && basicPlanDetails[detailData.id].acomodations.length > 0 && basicPlanDetails[detailData.id].acomodations.map((a: any, idx: number) => (
-                                        <div key={a.id || idx} className="mb-2">
-                                          <div><span className="font-semibold">Room:</span> {a.roomTypeName || a.roomType}</div>
-                                          <div><span className="font-semibold">Capacity:</span> {a.capacity}</div>
-                                          <div><span className="font-semibold">Price/night:</span> {a.pricePerNight?.toLocaleString()}₫</div>
-                                          <div><span className="font-semibold">Description:</span> {a.description}</div>
-                                        </div>
-                                      ))}
-                                      {/* Hiển thị entitlement detail nếu có */}
-                                      {basicPlanDetails[detailData.id].entitlements && basicPlanDetails[detailData.id].entitlements.length > 0 && basicPlanDetails[detailData.id].entitlements.map((e: any, idx: number) => (
-                                        <div key={e.id || idx} className="mb-2">
-                                          <div><span className="font-semibold">Service:</span> {e.nextUServiceName}</div>
-                                          <div><span className="font-semibold">Price:</span> {e.price}</div>
-                                          <div><span className="font-semibold">Credit Amount:</span> {e.creditAmount}</div>
-                                          <div><span className="font-semibold">Period:</span> {e.period}</div>
-                                          <div><span className="font-semibold">Note:</span> {e.note}</div>
-                                        </div>
-                                      ))}
-                                      {/* Nếu không có gì */}
-                                      {!basicPlanDetails[detailData.id].acomodations && !basicPlanDetails[detailData.id].entitlements && (
-                                        <div className="italic text-slate-400">No detail info</div>
-                                      )}
-                                    </>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        ) : null}
-                      </>
+                  {selectedRequest.discountRate && selectedRequest.discountRate > 0 && (
+                    <div>
+                      <span className="text-slate-500">Discount:</span>
+                      <span className="ml-2 font-medium text-green-600">{selectedRequest.discountRate}%</span>
+                    </div>
+                  )}
+                </div>
+                
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                  <div>
+                    <span className="text-slate-500">Location:</span>
+                    <span className="ml-2 font-medium">{selectedRequest.locationName}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500">Created:</span>
+                    <span className="ml-2 font-medium">
+                      {new Date(selectedRequest.createdAt).toLocaleDateString()}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500">Start Date:</span>
+                    <span className="ml-2 font-medium">
+                      {selectedRequest.startDate ? new Date(selectedRequest.startDate).toLocaleDateString() : '-'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500">Expire Date:</span>
+                    <span className="ml-2 font-medium">
+                      {selectedRequest.expireAt ? new Date(selectedRequest.expireAt).toLocaleDateString() : '-'}
+                    </span>
+                  </div>
+                </div>
+                
+                {selectedRequest.paymentMethod && (
+                  <div className="mt-3 pt-3 border-t grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="text-slate-500">Payment Method:</span>
+                      <span className="ml-2 font-medium">{selectedRequest.paymentMethod}</span>
+                    </div>
+                    {selectedRequest.paymentTime && (
+                      <div>
+                        <span className="text-slate-500">Payment Time:</span>
+                        <span className="ml-2 font-medium">
+                          {new Date(selectedRequest.paymentTime).toLocaleString()}
+                        </span>
+                      </div>
                     )}
-                    {/* Combo package detail */}
-                    {detailPackage.packageType?.toLowerCase() === 'combo' && (
-                      <>
-                        {/* Included Basic Plans */}
-                        {detailData.basicPlans && detailData.basicPlans.length > 0 && (
-                          <div className="mt-2">
-                            <span className="block text-xs text-purple-700 font-semibold mb-1">Included Basic Plans:</span>
-                            <div className="space-y-2">
-                              {detailData.basicPlans.map((b: any, idx: number) => (
-                                <div key={b.id}>
-                                  <div className="flex items-center mb-2">
-                                    <Check className="h-5 w-5 text-teal-500 mr-2 flex-shrink-0" />
-                                    <span className="flex items-center cursor-pointer group text-purple-900 font-semibold" onClick={() => handleToggleBasicCollapse(b)}>
-                                      {b.name}
-                                      <ChevronDown className={`h-4 w-4 ml-2 transition-transform ${expandedBasicPlans[b.id] ? 'rotate-180' : ''}`} />
-                                    </span>
-                                  </div>
-                                  {expandedBasicPlans[b.id] && (
-                                    <div className="ml-7 mt-1 text-xs text-slate-600 space-y-3">
-                                      {loadingBasicDetail[b.id] && <div className="text-slate-400">Loading...</div>}
-                                      {!loadingBasicDetail[b.id] && basicPlanDetails[b.id] && (
-                                        <>
-                                          {/* Hiển thị accom detail nếu có */}
-                                          {basicPlanDetails[b.id].acomodations && basicPlanDetails[b.id].acomodations.length > 0 && basicPlanDetails[b.id].acomodations.map((a: any, idx: number) => (
-                                            <div key={a.id || idx} className="mb-2">
-                                              <div><span className="font-semibold">Room:</span> {a.roomTypeName || a.roomType}</div>
-                                              <div><span className="font-semibold">Capacity:</span> {a.capacity}</div>
-                                              <div><span className="font-semibold">Price/night:</span> {a.pricePerNight?.toLocaleString()}₫</div>
-                                              <div><span className="font-semibold">Description:</span> {a.description}</div>
-                                            </div>
-                                          ))}
-                                          {/* Hiển thị entitlement detail nếu có */}
-                                          {basicPlanDetails[b.id].entitlements && basicPlanDetails[b.id].entitlements.length > 0 && basicPlanDetails[b.id].entitlements.map((e: any, idx: number) => (
-                                            <div key={e.id || idx} className="mb-2">
-                                              <div><span className="font-semibold">Service:</span> {e.nextUServiceName}</div>
-                                              <div><span className="font-semibold">Price:</span> {e.price}</div>
-                                              <div><span className="font-semibold">Credit Amount:</span> {e.creditAmount}</div>
-                                              <div><span className="font-semibold">Period:</span> {e.period}</div>
-                                              <div><span className="font-semibold">Note:</span> {e.note}</div>
-                                            </div>
-                                          ))}
-                                          {/* Nếu không có gì */}
-                                          {!basicPlanDetails[b.id].acomodations && !basicPlanDetails[b.id].entitlements && (
-                                            <div className="italic text-slate-400">No detail info</div>
-                                          )}
-                                        </>
-                                      )}
-                                    </div>
-                                  )}
+                  </div>
+                )}
+              </div>
+
+              {/* Package Information (including Room) */}
+              {basicPlanDetail && (
+                <div className="bg-white border rounded-lg p-4">
+                  <h3 className="text-lg font-semibold text-slate-800 mb-3">Package Information</h3>
+                  
+                  {/* Basic Package Details */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
+                    <div>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-slate-500">Type Code:</span>
+                          <span className="font-medium">{basicPlanDetail.basicPlanTypeCode}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-500">Plan Source:</span>
+                          <span className="font-medium">{basicPlanDetail.planSource}</span>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <div className="text-sm text-slate-500 mb-2">Plan Duration:</div>
+                      {basicPlanDetail.planDurations && basicPlanDetail.planDurations.length > 0 && (
+                        <div className="space-y-1">
+                          {basicPlanDetail.planDurations.map((duration, idx) => (
+                            <div key={idx} className="bg-slate-50 rounded px-3 py-2 text-sm font-medium">
+                              {duration.planDurationDescription}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Entitlements */}
+                  {basicPlanDetail.entitlements && basicPlanDetail.entitlements.length > 0 && (
+                    <div className="mb-4 pt-4 border-t">
+                      <div className="text-sm text-slate-500 mb-2">Entitlements:</div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                        {basicPlanDetail.entitlements.map((entitlement, idx) => (
+                          <div key={idx} className="bg-slate-50 rounded px-3 py-2 text-sm">
+                            <span className="font-medium">Entitlement {idx + 1}:</span>
+                            <span className="ml-2 text-slate-600">{JSON.stringify(entitlement)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Room Information as part of Package */}
+                  {roomDetail && (
+                    <div className="pt-4 border-t">
+                      <h4 className="text-md font-semibold text-slate-800 mb-4">Room Details</h4>
+                      
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        {/* Left: Image Gallery */}
+                        <div className="space-y-4">
+                          {/* Main Image */}
+                          <div className="relative aspect-[4/3] rounded-lg overflow-hidden border bg-slate-100">
+                            {roomDetail.medias && roomDetail.medias.length > 0 ? (
+                              <>
+                                <img 
+                                  src={roomDetail.medias[currentImageIndex].url} 
+                                  alt={roomDetail.medias[currentImageIndex].description || 'Room image'}
+                                  className="w-full h-full object-cover"
+                                />
+                                {/* Image Counter */}
+                                <div className="absolute bottom-3 right-3 bg-black/70 text-white text-xs px-2 py-1 rounded">
+                                  {currentImageIndex + 1}/{roomDetail.medias.length}
+                                </div>
+                                {/* Navigation Arrows */}
+                                {roomDetail.medias.length > 1 && (
+                                  <>
+                                    <button 
+                                      className="absolute left-2 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white text-slate-700 p-2 rounded-full shadow-lg transition-all"
+                                      onClick={() => setCurrentImageIndex((prev) => (prev === 0 ? roomDetail.medias.length - 1 : prev - 1))}
+                                    >
+                                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                                      </svg>
+                                    </button>
+                                    <button 
+                                      className="absolute right-2 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white text-slate-700 p-2 rounded-full shadow-lg transition-all"
+                                      onClick={() => setCurrentImageIndex((prev) => (prev === roomDetail.medias.length - 1 ? 0 : prev + 1))}
+                                    >
+                                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                      </svg>
+                                    </button>
+                                  </>
+                                )}
+                              </>
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-slate-400">
+                                <svg className="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                </svg>
+                              </div>
+                            )}
+                          </div>
+                          
+                          {/* Thumbnail Navigation */}
+                          {roomDetail.medias && roomDetail.medias.length > 1 && (
+                            <div className="grid grid-cols-4 gap-2">
+                              {roomDetail.medias.map((media, idx) => (
+                                <div 
+                                  key={idx} 
+                                  className={`aspect-square rounded-lg overflow-hidden border-2 cursor-pointer transition-all ${
+                                    currentImageIndex === idx ? 'border-blue-500' : 'border-transparent hover:border-blue-300'
+                                  }`}
+                                  onClick={() => setCurrentImageIndex(idx)}
+                                >
+                                  <img 
+                                    src={media.url} 
+                                    alt={media.description || `Room thumbnail ${idx + 1}`}
+                                    className="w-full h-full object-cover"
+                                  />
                                 </div>
                               ))}
                             </div>
+                          )}
+                        </div>
+
+                        {/* Right: Room Details */}
+                        <div className="space-y-4">
+                          {/* Combined Description and Room Specifications */}
+                          <div className="bg-white border rounded-lg p-4">
+                            {/* Description Section */}
+                            <div className="mb-4">
+                              <h5 className="font-semibold text-slate-800 mb-3">Description</h5>
+                              <div className="bg-slate-50 rounded-lg p-3 text-sm text-slate-700">
+                                {roomDetail.descriptionDetails || 'No description available'}
+                              </div>
+                            </div>
+
+                            {/* Divider */}
+                            <div className="border-t border-slate-200 mb-4"></div>
+
+                            {/* Room Specifications Section */}
+                            <div>
+                              <h5 className="font-semibold text-slate-800 mb-3">Room Specifications</h5>
+                              
+                              {/* Room Specifications in 4 rows with 2 columns each */}
+                              <div className="space-y-3 text-sm">
+                                {/* Row 1: Room Code | Room Type */}
+                                <div className="grid grid-cols-2 gap-4">
+                                  <div className="flex justify-between items-center gap-3">
+                                    <span className="text-slate-500">Room Code:</span>
+                                    <span className="font-medium">{roomDetail.roomCode}</span>
+                                  </div>
+                                  <div className="flex justify-between items-center gap-3">
+                                    <span className="text-slate-500">Room Type:</span>
+                                    <span 
+                                      className="font-medium text-right truncate min-w-0 max-w-[70%] cursor-pointer hover:text-blue-600 transition-colors" 
+                                      title={`Click to see full: ${roomDetail.roomTypeName}`}
+                                      onClick={() => {
+                                        if (roomDetail.roomTypeName.length > 15) {
+                                          alert(`Full Room Type: ${roomDetail.roomTypeName}`);
+                                        }
+                                      }}
+                                    >
+                                      {roomDetail.roomTypeName}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {/* Row 2: Area | View */}
+                                <div className="grid grid-cols-2 gap-4">
+                                  <div className="flex justify-between items-center">
+                                    <span className="text-slate-500">Area:</span>
+                                    <span className="font-medium">{roomDetail.areaInSquareMeters} m²</span>
+                                  </div>
+                                  <div className="flex justify-between items-center">
+                                    <span className="text-slate-500">View:</span>
+                                    <span className="font-medium">{roomDetail.roomViewName}</span>
+                                  </div>
+                                </div>
+
+                                {/* Row 3: Size | Floor */}
+                                <div className="grid grid-cols-2 gap-4">
+                                  <div className="flex justify-between items-center">
+                                    <span className="text-slate-500">Size:</span>
+                                    <span className="font-medium">{roomDetail.roomSizeName}</span>
+                                  </div>
+                                  <div className="flex justify-between items-center">
+                                    <span className="text-slate-500">Floor:</span>
+                                    <span className="font-medium">{roomDetail.roomFloorName}</span>
+                                  </div>
+                                </div>
+
+                                {/* Row 4: Bed Type | Number of Beds */}
+                                <div className="grid grid-cols-2 gap-4">
+                                  <div className="flex justify-between items-center">
+                                    <span className="text-slate-500">Bed Type:</span>
+                                    <span className="font-medium">{roomDetail.bedTypeName}</span>
+                                  </div>
+                                  <div className="flex justify-between items-center">
+                                    <span className="text-slate-500">Number of Beds:</span>
+                                    <span className="font-medium">{roomDetail.numberOfBeds}</span>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
                           </div>
-                        )}
-                      </>
-                    )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Staff Notes */}
+              {selectedRequest.staffNote && (
+                <div className="bg-white border rounded-lg p-4">
+                  <h3 className="text-lg font-semibold text-slate-800 mb-3">Staff Notes</h3>
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm">
+                    {selectedRequest.staffNote}
                   </div>
                 </div>
               )}
-            </DialogDescription>
-          </DialogHeader>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
+
       {/* Cancel Confirmation Dialog */}
       <ConfirmDialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
         <ConfirmDialogContent className="max-w-sm">
@@ -618,6 +771,7 @@ export default function PackageList() {
           </div>
         </ConfirmDialogContent>
       </ConfirmDialog>
+
       {/* Cancel Success Dialog */}
       <ConfirmDialog open={cancelSuccess} onOpenChange={setCancelSuccess}>
         <ConfirmDialogContent className="max-w-sm">

@@ -42,7 +42,16 @@ interface UsageDetail {
   useDate: string
   ticketTypeId: string
   ticketTypeName: string
+  originalUnitPrice: number
+  earlyBirdDiscountAmount: number
+  earlyBirdDiscountPercent: number
+  comboDiscountAmount: number
+  comboDiscountPercent: number
+  totalDiscountAmount: number
+  finalUnitPrice: number
   unitPrice: number
+  appliedRule: string
+  lockedUnitPrice: number
 }
 
 interface EventBooking {

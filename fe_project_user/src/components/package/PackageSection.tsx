@@ -5,9 +5,9 @@ import { useMemo } from "react";
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Check, X, MapPin, Star, Clock, Zap, Shield, Award, Sparkles } from "lucide-react"
+import { Check, X, MapPin, Star, Clock, Zap, Shield, Award, Sparkles, Building2, MapPinIcon } from "lucide-react"
 import Link from "next/link"
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Select } from "@/components/ui/select";
 
 interface PackageSectionProps {
@@ -42,7 +42,10 @@ export default function PackageSection({
         const res = await api.get("/api/user/cities");
         const data = res.data || res;
         setCities(data);
-        // KHÔNG tự động setSelectedCity(data[0].id);
+        // Auto-select first city
+        if (data && data.length > 0) {
+          setSelectedCity(data[0].id);
+        }
       } catch {
         setCities([]);
       }
@@ -62,8 +65,10 @@ export default function PackageSection({
         const res = await api.get(`/api/user/locations/by-city/${selectedCity}`);
         const data = res.data || res;
         setLocations(data);
-        // KHÔNG tự động setSelectedLocation(data[0].id);
-        // else setSelectedLocation("");
+        // Auto-select first location
+        if (data && data.length > 0) {
+          setSelectedLocation(data[0].id);
+        }
       } catch {
         setLocations([]);
         setSelectedLocation("");
@@ -86,8 +91,10 @@ export default function PackageSection({
         const res = await api.get(`/api/user/locations/propertyby-location/${selectedLocation}`);
         const data = res.data || res;
         setProperties(data);
-        // KHÔNG tự động setSelectedProperty(data[0].id);
-        // else setSelectedProperty("");
+        // Auto-select first property
+        if (data && data.length > 0) {
+          setSelectedProperty(data[0].id);
+        }
       } catch {
         setProperties([]);
         setSelectedProperty("");
@@ -96,21 +103,42 @@ export default function PackageSection({
     fetchProperties();
   }, [selectedLocation]);
 
-
-
   // --- UI FILTERS ---
-  // Replace old filter UI with 3 select
   const [comboPlans, setComboPlans] = useState<any[]>([]);
   const [basicPlans, setBasicPlans] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showType, setShowType] = useState<'combo' | 'basic'>("basic");
+  const [showType, setShowType] = useState<'combo' | 'basic'>(() => {
+    // Check URL params first, then localStorage, then default to "basic"
+    if (typeof window !== 'undefined') {
+      const urlType = new URLSearchParams(window.location.search).get('type');
+      if (urlType === 'combo' || urlType === 'basic') {
+        return urlType as 'combo' | 'basic';
+      }
+      
+      const savedType = localStorage.getItem('packageType');
+      if (savedType === 'combo' || savedType === 'basic') {
+        return savedType as 'combo' | 'basic';
+      }
+    }
+    return "basic";
+  });
+  
+
   const [nextServiceNames, setNextServiceNames] = useState<{ [pkgId: string]: string[] }>({});
   const [loadingNext, setLoadingNext] = useState<{ [pkgId: string]: boolean }>({});
   const [requestingPackageId, setRequestingPackageId] = useState<string | null>(null);
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [accommodationInfo, setAccommodationInfo] = useState<{ [accommodationId: string]: any }>({});
   const [loadingAccommodation, setLoadingAccommodation] = useState<{ [accommodationId: string]: boolean }>({});
   const [expandedAccommodations, setExpandedAccommodations] = useState<{ [key: string]: boolean }>({});
+  const [basicPlanDetails, setBasicPlanDetails] = useState<{ [planId: string]: any }>({});
+  const [loadingBasicPlans, setLoadingBasicPlans] = useState<{ [planId: string]: boolean }>({});
+  const [durationDetails, setDurationDetails] = useState<{ [durationId: string]: any }>({});
+  const [loadingDurations, setLoadingDurations] = useState<{ [durationId: string]: boolean }>({});
+  const [fetchedBasicPlans, setFetchedBasicPlans] = useState<Set<string>>(new Set());
+  const [fetchedDurations, setFetchedDurations] = useState<Set<string>>(new Set());
+  
   // --- FILTER BASIC PLANS BY PROPERTY ---
   const filteredBasic = useMemo(() => {
     if (!selectedProperty) return [];
@@ -118,6 +146,25 @@ export default function PackageSection({
       ? basicPlans.filter((b) => b.propertyId === selectedProperty)
       : [];
   }, [basicPlans, selectedProperty]);
+
+  // --- FILTER COMBO PLANS BY PROPERTY ---
+  const filteredCombo = useMemo(() => {
+    if (!selectedProperty) {
+      return [];
+    }
+    
+    if (!Array.isArray(comboPlans)) {
+      return [];
+    }
+    
+    const filtered = comboPlans.filter((c) => {
+      // Check if combo plan has propertyId that matches selectedProperty
+      return c.propertyId === selectedProperty;
+    });
+    
+    return filtered;
+  }, [comboPlans, selectedProperty]);
+
   useEffect(() => {
     async function fetchData() {
       setLoading(true);
@@ -128,6 +175,8 @@ export default function PackageSection({
         ]);
         let combos = combosRes.data || combosRes;
         let basics = basicsRes.data || basicsRes;
+        
+
 
         // Lấy duration cho từng basic plan
         basics = await Promise.all(basics.map(async (b: any) => {
@@ -150,6 +199,7 @@ export default function PackageSection({
           }
           return c;
         }));
+
 
         setComboPlans(combos);
         setBasicPlans(basics);
@@ -184,16 +234,15 @@ export default function PackageSection({
   }
 
   useEffect(() => {
-    const list = showType === 'basic' ? filteredBasic : comboPlans;
+    const list = showType === 'basic' ? filteredBasic : filteredCombo;
     list.forEach(pkg => {
-      console.log('DEBUG package:', pkg);
       const ids = pkg.serviceIds || pkg.nextUServiceIds || pkg.nextUserServiceIds || pkg.nextServiceIds || [];
       if (ids.length > 0 && !nextServiceNames[pkg.id]) {
         fetchNextServiceNames(ids, pkg.id);
       }
     });
     // eslint-disable-next-line
-  }, [showType, filteredBasic, comboPlans]);
+  }, [showType, filteredBasic, filteredCombo]);
 
   async function handleRequestPackage(packageIdToRequest: string, cardId: string, type: 'basic' | 'combo') {
     if (!packageIdToRequest) {
@@ -207,23 +256,13 @@ export default function PackageSection({
         router.push(`/packages/basic/${packageIdToRequest}`);
         return;
       }
-      const body: any = {
-        packageId: packageIdToRequest,
-        packageType: 'Combo',
-        messageToStaff: 'Yêu cầu đăng ký gói này.'
-      };
-      body.redirectUrl = (typeof window !== 'undefined' ? window.location.origin : '') + '/combo-payment-success';
-      const response = await api.post('/api/user/memberships/requestMember', body);
-      const resData = response.data;
-      if (resData.success) {
-        alert(resData.message || 'Yêu cầu của bạn đã được gửi. Vui lòng chờ đội ngũ xét duyệt.');
-      } else {
-        alert(resData.message || 'Gửi yêu cầu thất bại. Vui lòng thử lại.');
+      if (type === 'combo') {
+        // Chuyển sang trang detail gói combo
+        router.push(`/packages/combo/${packageIdToRequest}`);
+        return;
       }
     } catch (error: any) {
-      console.error('Request package error:', error);
-      const errorMessage = error.response?.data?.message || 'Có lỗi xảy ra. Vui lòng thử lại.';
-      alert(errorMessage);
+      console.error('Navigation error:', error);
     } finally {
       setRequestingPackageId(null);
     }
@@ -243,19 +282,62 @@ export default function PackageSection({
     }
   }
 
+  // Fetch basic plan details for combo packages
+  async function fetchBasicPlanDetails(planId: string) {
+    if (!planId || fetchedBasicPlans.has(planId)) return;
+    
+    setFetchedBasicPlans(prev => new Set(Array.from(prev).concat([planId])));
+    setLoadingBasicPlans((prev) => ({ ...prev, [planId]: true }));
+    
+    try {
+      const res = await api.get(`/api/membership/BasicPlans/${planId}`);
+      setBasicPlanDetails((prev) => ({ ...prev, [planId]: res.data || res }));
+    } catch (err) {
+      setBasicPlanDetails((prev) => ({ ...prev, [planId]: null }));
+    } finally {
+      setLoadingBasicPlans((prev) => ({ ...prev, [planId]: false }));
+    }
+  }
+
+  // Fetch duration details for combo packages
+  async function fetchDurationDetails(durationId: string) {
+    if (!durationId || fetchedDurations.has(durationId)) return;
+    
+    setFetchedDurations(prev => new Set(Array.from(prev).concat([durationId])));
+    setLoadingDurations((prev) => ({ ...prev, [durationId]: true }));
+    
+    try {
+      // Use the correct API endpoint for PackageDuration
+      const res = await api.get(`/api/membership/PackageDuration/${durationId}`);
+      setDurationDetails((prev) => ({ ...prev, [durationId]: res.data || res }));
+    } catch (err) {
+      console.log('Duration fetch error for ID:', durationId, err);
+      setDurationDetails((prev) => ({ ...prev, [durationId]: null }));
+    } finally {
+      setLoadingDurations((prev) => ({ ...prev, [durationId]: false }));
+    }
+  }
+
   // Limit packages if maxPackages is specified, or if isPreview is true, limit to 3
-  const limitedCombos = isPreview ? comboPlans.slice(0, 3) : (maxPackages ? comboPlans.slice(0, maxPackages) : comboPlans);
+  const limitedCombos = isPreview ? filteredCombo.slice(0, 3) : (maxPackages ? filteredCombo.slice(0, maxPackages) : filteredCombo);
   const limitedBasic = isPreview ? filteredBasic.slice(0, 3) : (maxPackages ? filteredBasic.slice(0, maxPackages) : filteredBasic);
+  
+  console.log('DEBUG Combo packages filtering:', {
+    totalComboPlans: comboPlans?.length || 0,
+    selectedProperty,
+    filteredCombo: filteredCombo?.length || 0,
+    limitedCombos: limitedCombos?.length || 0,
+    comboPlansSample: comboPlans?.[0] || null
+  });
+  
+
 
   // Auto-fetch accommodation info for all basic packages
   useEffect(() => {
-    console.log("limitedBasic", limitedBasic);
     limitedBasic.forEach(pkg => {
-      console.log("pkg.acomodations", pkg.acomodations);
       if (pkg.acomodations && Array.isArray(pkg.acomodations)) {
         pkg.acomodations.forEach((a: any) => {
           const accommodationId = a.accomodationId;
-          console.log("accommodationId to fetch:", accommodationId, "already in state?", !!accommodationInfo[accommodationId]);
           if (accommodationId && !accommodationInfo[accommodationId]) {
             fetchAccommodationInfo(accommodationId);
           }
@@ -278,6 +360,64 @@ export default function PackageSection({
     // eslint-disable-next-line
   }, [limitedBasic]);
 
+  // Auto-fetch basic plan details for combo packages
+  useEffect(() => {
+    const fetchData = async () => {
+      const planIdsToFetch: string[] = [];
+      const durationIdsToFetch: string[] = [];
+
+      limitedCombos.forEach(pkg => {
+        // Collect basic plan IDs that need fetching
+        if (pkg.basicPlanIds && Array.isArray(pkg.basicPlanIds)) {
+          pkg.basicPlanIds.forEach((planId: string) => {
+            if (planId && !fetchedBasicPlans.has(planId) && !loadingBasicPlans[planId] && !planIdsToFetch.includes(planId)) {
+              planIdsToFetch.push(planId);
+            }
+          });
+        }
+        
+        // Collect duration IDs that need fetching
+        if (pkg.packageDurations && Array.isArray(pkg.packageDurations)) {
+          pkg.packageDurations.forEach((duration: any) => {
+            const durationId = duration.durationId;
+            if (durationId && !fetchedDurations.has(durationId) && !loadingDurations[durationId] && !durationIdsToFetch.includes(durationId)) {
+              durationIdsToFetch.push(durationId);
+            }
+          });
+        }
+      });
+
+      // Fetch basic plans
+      planIdsToFetch.forEach(planId => {
+        fetchBasicPlanDetails(planId);
+      });
+
+      // Fetch durations
+      durationIdsToFetch.forEach(durationId => {
+        fetchDurationDetails(durationId);
+      });
+    };
+
+    if (limitedCombos.length > 0) {
+      fetchData();
+    }
+  }, [limitedCombos.length, limitedCombos.map(p => p.id).join(',')]);  // Only re-run when combo list actually changes
+
+  // Function to update showType and persist it
+  const updateShowType = (newType: 'combo' | 'basic') => {
+    setShowType(newType);
+    
+    // Update URL without page refresh
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.set('type', newType);
+      window.history.replaceState({}, '', url.toString());
+      
+      // Also save to localStorage as backup
+      localStorage.setItem('packageType', newType);
+    }
+  };
+
   if (loading) {
     return (
       <div className={`min-h-screen bg-gradient-to-br from-[#e8f9fc] via-[#f0fbfd] to-[#cce9fa] ${className}`}>
@@ -293,131 +433,128 @@ export default function PackageSection({
 
   return (
     <div className={`min-h-screen bg-gradient-to-br from-[#e8f9fc] via-[#f0fbfd] to-[#cce9fa] ${className}`}>
-      {/* Hero Section - Only show if showHero is true */}
-      {showHero && (
-        <section className="relative py-24 px-4 sm:px-6 lg:px-8 overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-[#e8f9fc] via-[#f0fbfd] to-[#cce9fa]" />
-          <div className="absolute inset-0 bg-[url('/placeholder.svg?height=800&width=1200')] bg-cover bg-center opacity-5" />
-          
-          <div className="relative max-w-7xl mx-auto text-center">
-            <div className="mb-8">
-              <Badge className="mb-4 bg-white/20 text-slate-700 border-white/30 backdrop-blur-sm">
-                🌟 Mindful Co-living Experience
-              </Badge>
-            </div>
-            
-            <h1 className="text-5xl md:text-7xl font-bold text-slate-800 mb-8 leading-tight">
-              Find Your{" "}
-              <span className="text-7xl font-black bg-gradient-to-r from-[#28c4dd] via-[#5661b3] to-[#0c1f47] bg-clip-text text-transparent tracking-tight">
-                Perfect Package
-              </span>
-            </h1>
-            
-            <p className="text-xl md:text-2xl text-slate-600 mb-12 max-w-4xl mx-auto leading-relaxed">
-              Discover mindful co-living spaces that nurture your <strong className="text-[#28c4dd]">body</strong>, <strong className="text-[#5661b3]">mind</strong>, and <strong className="text-[#0c1f47]">creativity</strong>. 
-              Join a community of like-minded individuals in beautiful locations across Vietnam.
-            </p>
 
-            {/* Stats */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-8 max-w-4xl mx-auto mb-16">
-              <div className="text-center">
-                <div className="text-3xl md:text-4xl font-bold text-slate-800">
-                  50+
-                </div>
-                <div className="text-slate-600">Available Packages</div>
-              </div>
-              <div className="text-center">
-                <div className="text-3xl md:text-4xl font-bold text-slate-800">
-                  2
-                </div>
-                <div className="text-slate-600">Cities Available</div>
-              </div>
-              <div className="text-center">
-                <div className="text-3xl md:text-4xl font-bold text-slate-800">
-                  4.8★
-                </div>
-                <div className="text-slate-600">Customer Rating</div>
-              </div>
-              <div className="text-center">
-                <div className="text-3xl md:text-4xl font-bold text-slate-800">
-                  98%
-                </div>
-                <div className="text-slate-600">Satisfaction Rate</div>
-              </div>
-            </div>
-          </div>
-        </section>
-      )}
 
-      {/* Horizontal Cascading Filter Section */}
+      {/* Filter Section */}
       {(showLocationFilter || showTypeFilter) && (
-        <section className="py-8 px-4 sm:px-6 lg:px-8 bg-white/50 backdrop-blur-sm">
+        <section className="py-6 px-4 sm:px-6 lg:px-8 bg-white/50">
           <div className="max-w-4xl mx-auto">
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 bg-white/80 rounded-2xl p-6 shadow-xl backdrop-blur-sm">
-              {/* City Select */}
-              <div className="flex flex-col min-w-[160px]">
-                <label className="mb-1 text-sm font-semibold text-slate-700" htmlFor="city-select">City</label>
-                <select
-                  id="city-select"
-                  className="rounded px-3 py-2 border border-slate-300 focus:ring-2 focus:ring-blue-300 focus:outline-none bg-white text-slate-800"
-                  value={selectedCity}
-                  onChange={e => {
-                    setSelectedCity(e.target.value);
-                    setSelectedLocation("");
-                    setSelectedProperty("");
-                  }}
-                  disabled={cities.length === 0}
-                >
-                  <option value="">Select city</option>
-                  {cities.map(city => (
-                    <option key={city.id} value={city.id}>{city.name}</option>
-                  ))}
-                </select>
+            {/* Location Filters */}
+            {showLocationFilter && (
+              <div className="bg-white rounded-lg p-5 shadow-sm border mb-4">
+                <div className="text-center mb-4">
+                  <h3 className="text-lg font-semibold text-slate-800 mb-1">Select Location</h3>
+                  <p className="text-sm text-slate-600">Choose city, location, and property</p>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* City Select */}
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+                      <MapPinIcon className="w-4 h-4 text-slate-500" />
+                      City
+                    </label>
+                    <select
+                      className="w-full px-3 py-2 rounded-md border border-slate-300 focus:ring-1 focus:ring-slate-400 focus:border-slate-400 focus:outline-none bg-white text-slate-800 text-sm"
+                      value={selectedCity}
+                      onChange={e => {
+                        setSelectedCity(e.target.value);
+                        setSelectedLocation("");
+                        setSelectedProperty("");
+                      }}
+                      disabled={cities.length === 0}
+                    >
+                      <option value="">Select city</option>
+                      {cities.map(city => (
+                        <option key={city.id} value={city.id}>{city.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Location Select */}
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+                      <MapPin className="w-4 h-4 text-slate-500" />
+                      Location
+                    </label>
+                    <select
+                      className="w-full px-3 py-2 rounded-md border border-slate-300 focus:ring-1 focus:ring-slate-400 focus:border-slate-400 focus:outline-none bg-white text-slate-800 text-sm disabled:bg-slate-50 disabled:cursor-not-allowed"
+                      value={selectedLocation}
+                      onChange={e => {
+                        setSelectedLocation(e.target.value);
+                        setSelectedProperty("");
+                      }}
+                      disabled={!selectedCity || locations.length === 0}
+                    >
+                      <option value="">Select location</option>
+                      {locations.map(loc => (
+                        <option key={loc.id} value={loc.id}>{loc.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Property Select */}
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+                      <Building2 className="w-4 h-4 text-slate-500" />
+                      Property
+                    </label>
+                    <select
+                      className="w-full px-3 py-2 rounded-md border border-slate-300 focus:ring-1 focus:ring-slate-400 focus:border-slate-400 focus:outline-none bg-white text-slate-800 text-sm disabled:bg-slate-50 disabled:cursor-not-allowed"
+                      value={selectedProperty}
+                      onChange={e => setSelectedProperty(e.target.value)}
+                      disabled={!selectedLocation || properties.length === 0}
+                    >
+                      <option value="">Select property</option>
+                      {properties.map(prop => (
+                        <option key={prop.id} value={prop.id}>{prop.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Selected Location Info */}
+                {selectedCity && selectedLocation && selectedProperty && (
+                  <div className="mt-4 text-center">
+                    <div className="inline-flex items-center gap-2 bg-slate-800 text-white px-4 py-2 rounded-md text-sm font-medium">
+                      <MapPin className="h-4 w-4" />
+                      <span>
+                        Showing packages for <strong>{properties.find(p => p.id === selectedProperty)?.name || ''}</strong>
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
-              {/* Location Select */}
-              <div className="flex flex-col min-w-[180px]">
-                <label className="mb-1 text-sm font-semibold text-slate-700" htmlFor="location-select">Location</label>
-                <select
-                  id="location-select"
-                  className="rounded px-3 py-2 border border-slate-300 focus:ring-2 focus:ring-blue-300 focus:outline-none bg-white text-slate-800"
-                  value={selectedLocation}
-                  onChange={e => {
-                    setSelectedLocation(e.target.value);
-                    setSelectedProperty("");
-                  }}
-                  disabled={!selectedCity || locations.length === 0}
-                >
-                  <option value="">Select location</option>
-                  {locations.map(loc => (
-                    <option key={loc.id} value={loc.id}>{loc.name}</option>
-                  ))}
-                </select>
-              </div>
-              {/* Property Select */}
-              <div className="flex flex-col min-w-[200px]">
-                <label className="mb-1 text-sm font-semibold text-slate-700" htmlFor="property-select">Property</label>
-                <select
-                  id="property-select"
-                  className="rounded px-3 py-2 border border-slate-300 focus:ring-2 focus:ring-blue-300 focus:outline-none bg-white text-slate-800"
-                  value={selectedProperty}
-                  onChange={e => setSelectedProperty(e.target.value)}
-                  disabled={!selectedLocation || properties.length === 0}
-                >
-                  <option value="">Select property</option>
-                  {properties.map(prop => (
-                    <option key={prop.id} value={prop.id}>{prop.name}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            {/* Info */}
-            {selectedCity && selectedLocation && selectedProperty && (
-              <div className="mt-6 text-center">
-                <div className="inline-flex items-center gap-2 bg-blue-50 text-blue-700 px-4 py-2 rounded-full text-sm">
-                  <MapPin className="h-4 w-4" />
-                  <span>
-                    Showing packages for <strong>{properties.find(p => p.id === selectedProperty)?.name || ''}</strong>
-                  </span>
+            )}
+
+            {/* Package Type Toggle - Moved below location filters */}
+            {showTypeFilter && (
+              <div className="flex justify-center">
+                <div className="bg-white rounded-lg p-1 shadow-sm border">
+                  <div className="flex">
+                    <button
+                      onClick={() => updateShowType('basic')}
+                      className={`px-6 py-2 rounded-md text-sm font-medium transition-colors ${
+                        showType === 'basic'
+                          ? 'bg-slate-800 text-white'
+                          : 'text-slate-600 hover:text-slate-800 hover:bg-slate-100'
+                      }`}
+                    >
+                      <Building2 className="inline-block w-4 h-4 mr-2" />
+                      Basic
+                    </button>
+                    <button
+                      onClick={() => updateShowType('combo')}
+                      className={`px-6 py-2 rounded-md text-sm font-medium transition-colors ${
+                        showType === 'combo'
+                          ? 'bg-slate-800 text-white'
+                          : 'text-slate-600 hover:text-slate-800 hover:bg-slate-100'
+                      }`}
+                    >
+                      <Sparkles className="inline-block w-4 h-4 mr-2" />
+                      Combo
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
@@ -426,308 +563,533 @@ export default function PackageSection({
       )}
 
       {/* Packages Section */}
-      <section className="py-16 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto">
-          {/* Only show packages if selectedProperty is set */}
-          {selectedProperty ? (
+      <section className="py-8 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-6xl mx-auto">
+          {/* Show packages if selectedProperty is set OR if we have default data */}
+          {(selectedProperty || (cities.length > 0 && locations.length > 0 && properties.length > 0)) ? (
             <>
+              {/* Section Header */}
+              <div className="text-center mb-8">
+                <h2 className="text-2xl font-bold text-slate-800 mb-2">
+                  {showType === 'basic' ? 'Basic Packages' : 'Combo Packages'}
+                </h2>
+                <p className="text-slate-600 max-w-xl mx-auto text-sm">
+                  {showType === 'basic' 
+                    ? 'Choose from our carefully curated basic packages designed for your specific needs'
+                    : 'Discover our value-packed combo deals that combine multiple services at discounted rates'
+                  }
+                </p>
+              </div>
+
               {showType === 'basic' && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-8 justify-center">
-                  {limitedBasic.length === 0 && (
-                    <div className="w-full text-center py-12">
-                      <div className="text-slate-500 text-lg">No basic packages available for this property.</div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 justify-center">
+                  {limitedBasic.length === 0 ? (
+                    <div className="col-span-full text-center py-12">
+                      <div className="bg-white/80 rounded-xl p-6 shadow-sm">
+                        <Building2 className="w-12 h-12 text-slate-400 mx-auto mb-3" />
+                        <h3 className="text-lg font-semibold text-slate-600 mb-2">No Basic Packages Available</h3>
+                        <p className="text-slate-500 text-sm">No basic packages are currently available for the selected property.</p>
+                      </div>
+                    </div>
+                  ) : (
+                                         limitedBasic.map((pkg, idx) => (
+                                               <Card key={pkg.id} className={`w-full relative overflow-hidden rounded-2xl border-0 shadow-lg hover:shadow-xl transition-all duration-500 transform hover:-translate-y-2 min-h-[480px] ${
+                          idx === 0 ? 'ring-2 ring-[#28c4dd] border-[#28c4dd] shadow-2xl' : ''
+                        }`}>
+                          {/* Popular Badge */}
+                          {idx === 0 && (
+                            <div className="absolute top-4 right-4 bg-gradient-to-r from-[#28c4dd] to-[#1ea5b8] text-white px-3 py-1.5 rounded-full text-xs font-semibold z-10 shadow-lg">
+                              <div className="flex items-center">
+                                <Star className="h-3 w-3 mr-1.5" />
+                                <span>Most Popular</span>
+                              </div>
+                            </div>
+                          )}
+                          
+                          {/* Header Section with Gradient */}
+                          <div className="relative h-48 bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 overflow-hidden">
+                            {/* Background Pattern */}
+                            <div className="absolute inset-0 opacity-10">
+                              <div className="absolute top-0 right-0 w-32 h-32 bg-[#28c4dd] rounded-full -translate-y-16 translate-x-16"></div>
+                              <div className="absolute bottom-0 left-0 w-24 h-24 bg-[#1ea5b8] rounded-full translate-y-12 -translate-x-12"></div>
+                            </div>
+                            
+                            {/* Content */}
+                            <div className="relative z-10 p-6 text-center h-full flex flex-col justify-center">
+                              <div className="mb-3">
+                                <Badge className="bg-white/80 text-slate-700 border-0 px-3 py-1 text-xs font-medium">
+                                  {pkg.basicPlanTypeCode || 'Basic Package'}
+                                </Badge>
+                              </div>
+                              <CardTitle className="text-xl font-bold text-slate-800 mb-3 leading-tight">{pkg.name}</CardTitle>
+                              <div className="flex items-center justify-center mb-2">
+                                <span className="text-3xl font-bold text-slate-800">{pkg.price?.toLocaleString()}</span>
+                                <span className="text-lg text-slate-600 ml-1">$</span>
+                              </div>
+                              {pkg.planDurations && pkg.planDurations.length > 0 && (
+                                <div className="text-slate-600 text-sm font-medium">
+                                  {pkg.planDurations[0].planDurationDescription || `${pkg.planDurations[0].planDurationValue} ${pkg.planDurations[0].planDurationUnit}`}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                         
+                         <CardContent className="p-5 space-y-4">
+                           {/* Package Details & Description */}
+                           <div className="bg-slate-50 rounded-lg p-4">
+                             <h4 className="font-semibold text-slate-800 mb-3 flex items-center text-sm">
+                               <Award className="h-4 w-4 mr-2 text-[#28c4dd]" />
+                               Package Details
+                             </h4>
+                             
+                             {/* Info Grid */}
+                             <div className="grid grid-cols-2 gap-3 mb-4">
+                               {pkg.planCategoryName && (
+                                 <div className="flex justify-between items-center">
+                                   <span className="text-xs text-slate-500">Category:</span>
+                                   <span className="text-sm font-medium text-slate-800">{pkg.planCategoryName}</span>
+                                 </div>
+                               )}
+                               {pkg.planLevelName && (
+                                 <div className="flex justify-between items-center">
+                                   <span className="text-xs text-slate-500">Level:</span>
+                                   <span className="text-sm font-medium text-slate-800">{pkg.planLevelName}</span>
+                                 </div>
+                               )}
+                               {pkg.targetAudienceName && (
+                                 <div className="flex justify-between items-center">
+                                   <span className="text-xs text-slate-500">Target:</span>
+                                   <span className="text-sm font-medium text-slate-800">{pkg.targetAudienceName}</span>
+                                 </div>
+                               )}
+                               <div className="flex justify-between items-center">
+                                 <span className="text-xs text-slate-500">Code:</span>
+                                 <span className="text-sm font-medium text-slate-800 font-mono">{pkg.code}</span>
+                               </div>
+                             </div>
+                             
+                             {/* Divider */}
+                             <div className="border-t border-slate-200 my-3"></div>
+                             
+                                                          {/* Description */}
+                             <div className="h-[4rem]">
+                               <div className="text-xs text-slate-500 mb-2">Description</div>
+                               <div className="h-[3rem] overflow-hidden">
+                                 <p className="text-slate-700 text-sm leading-relaxed line-clamp-3">
+                                   {pkg.description || 'No description available'}
+                                 </p>
+                               </div>
+                             </div>
+                           </div>
+
+                                                       {/* Services Section */}
+                            <div>
+                              <h4 className="font-semibold text-slate-800 mb-2 flex items-center text-sm">
+                                <Zap className="h-4 w-4 mr-2 text-[#28c4dd]" />
+                                Included Services
+                              </h4>
+                             {pkg.acomodations && pkg.acomodations.length > 0 ? (
+                               <div className="space-y-2">
+                                 {pkg.acomodations.map((a: any, i: number) => {
+                                   const accommodationId = a.accomodationId;
+                                   const info = accommodationInfo[accommodationId];
+                                   const loading = loadingAccommodation[accommodationId];
+                                   const expanded = expandedAccommodations[accommodationId];
+                                   const hasDetail = info && (info.capacity !== undefined || info.pricePerNight !== undefined || info.description);
+                                   return (
+                                     <div key={accommodationId || i} className="bg-white rounded-lg p-3 border border-slate-100">
+                                       <div className="flex items-center justify-between">
+                                         <div className="flex items-center">
+                                           {loading ? (
+                                             <>
+                                               <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-[#28c4dd] mr-2"></div>
+                                               <span className="text-slate-500 text-sm">Loading...</span>
+                                             </>
+                                           ) : info ? (
+                                             <>
+                                               <Check className="h-4 w-4 text-green-500 mr-2 flex-shrink-0" />
+                                               <span className="text-slate-700 font-medium text-sm">{info.roomTypeName || a.roomType || "Room"}</span>
+                                             </>
+                                           ) : (
+                                             <span className="text-slate-500 italic text-sm">No info</span>
+                                           )}
+                                         </div>
+                                         {hasDetail && (
+                                           <button
+                                             className={`p-1 rounded-full hover:bg-slate-100 transition-all duration-200 ${expanded ? 'bg-slate-200' : ''}`}
+                                             onClick={() => setExpandedAccommodations(prev => ({ ...prev, [accommodationId]: !prev[accommodationId] }))}
+                                           >
+                                             <span className={`transition-transform duration-200 text-slate-500 ${expanded ? 'rotate-180' : ''}`}>▼</span>
+                                           </button>
+                                         )}
+                                       </div>
+                                       {expanded && info && (
+                                         <div className="mt-3 pt-3 border-t border-slate-100 space-y-2">
+                                           {typeof info.capacity !== 'undefined' && (
+                                             <div className="flex justify-between text-xs">
+                                               <span className="text-slate-500">Capacity:</span>
+                                               <span className="font-medium text-slate-700">{info.capacity}</span>
+                                             </div>
+                                           )}
+                                           {typeof info.pricePerNight !== 'undefined' && (
+                                             <div className="flex justify-between text-xs">
+                                               <span className="text-slate-500">Price/night:</span>
+                                               <span className="font-medium text-slate-700">{info.pricePerNight.toLocaleString()}₫</span>
+                                             </div>
+                                           )}
+                                           {info.description && (
+                                             <div className="text-xs text-slate-600">{info.description}</div>
+                                           )}
+                                         </div>
+                                       )}
+                                     </div>
+                                   );
+                                 })}
+                               </div>
+                             ) : pkg.basicPlanTypeCode === 'LIFEACTIVITIES' && pkg.entitlements && pkg.entitlements.length > 0 ? (
+                               <div className="space-y-2">
+                                 {pkg.entitlements.map((e: any, i: number) => {
+                                   const entitlementId = e.entitlementId;
+                                   const info = accommodationInfo[entitlementId];
+                                   const loading = loadingAccommodation[entitlementId];
+                                   const expanded = expandedAccommodations[entitlementId];
+                                   return (
+                                     <div key={entitlementId || i} className="bg-white rounded-lg p-3 border border-slate-100">
+                                       <div className="flex items-center justify-between">
+                                         <div className="flex items-center">
+                                           {loading ? (
+                                             <>
+                                               <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-[#28c4dd] mr-2"></div>
+                                               <span className="text-slate-500 text-sm">Loading...</span>
+                                             </>
+                                           ) : (
+                                             <>
+                                               <Check className="h-4 w-4 text-green-500 mr-2 flex-shrink-0" />
+                                               <span className="text-slate-700 font-medium text-sm">
+                                                 {(info && info.nextUServiceName) ? info.nextUServiceName : e.nextUSerName || e.nextUServiceName}
+                                               </span>
+                                             </>
+                                           )}
+                                         </div>
+                                         <button
+                                           className={`p-1 rounded-full hover:bg-slate-100 transition-all duration-200 ${expanded ? 'bg-slate-200' : ''}`}
+                                           onClick={() => {
+                                             setExpandedAccommodations(prev => ({ ...prev, [entitlementId]: !prev[entitlementId] }));
+                                             if (!info && !loading) {
+                                               setLoadingAccommodation(prev => ({ ...prev, [entitlementId]: true }));
+                                               api.get(`/api/membership/EntitlementRule/${entitlementId}`)
+                                                 .then(res => setAccommodationInfo(prev => ({ ...prev, [entitlementId]: res.data || res })))
+                                                 .catch(() => setAccommodationInfo(prev => ({ ...prev, [entitlementId]: null })))
+                                                 .finally(() => setLoadingAccommodation(prev => ({ ...prev, [entitlementId]: false })));
+                                             }
+                                           }}
+                                         >
+                                           <span className={`transition-transform duration-200 text-slate-500 ${expanded ? 'rotate-180' : ''}`}>▼</span>
+                                         </button>
+                                       </div>
+                                       {expanded && (
+                                         loading ? (
+                                           <div className="mt-3 pt-3 border-t border-slate-100 text-xs text-slate-500">Loading...</div>
+                                         ) : info && (
+                                           <div className="mt-3 pt-3 border-t border-slate-100 space-y-2">
+                                             {typeof info.price !== 'undefined' && (
+                                               <div className="flex justify-between text-xs">
+                                                 <span className="text-slate-500">Price:</span>
+                                                 <span className="font-medium text-slate-700">{info.price}</span>
+                                               </div>
+                                             )}
+                                             {typeof info.creditAmount !== 'undefined' && (
+                                               <div className="flex justify-between text-xs">
+                                                 <span className="text-slate-500">Credit Amount:</span>
+                                                 <span className="font-medium text-slate-700">{info.creditAmount}</span>
+                                               </div>
+                                             )}
+                                             {typeof info.period !== 'undefined' && (
+                                               <div className="flex justify-between text-xs">
+                                                 <span className="text-slate-500">Period:</span>
+                                                 <span className="font-medium text-slate-700">{info.period}</span>
+                                               </div>
+                                             )}
+                                             {info.note && (
+                                               <div className="text-xs text-slate-600">{info.note}</div>
+                                             )}
+                                           </div>
+                                         )
+                                       )}
+                                     </div>
+                                   );
+                                 })}
+                               </div>
+                             ) : (
+                               <div className="bg-slate-50 rounded-lg p-4 text-center">
+                                 <div className="text-slate-400 text-sm">No included services</div>
+                               </div>
+                             )}
+                           </div>
+
+                           {/* CTA Button */}
+                           <Button
+                             className="w-full rounded-xl bg-gradient-to-r from-[#28c4dd] to-[#1ea5b8] hover:from-[#1ea5b8] hover:to-[#28c4dd] text-white font-semibold py-3 shadow-lg hover:shadow-xl transition-all duration-300 text-sm"
+                             onClick={() => handleRequestPackage(pkg.id, pkg.id, 'basic')}
+                             disabled={requestingPackageId === pkg.id}
+                           >
+                             {requestingPackageId === pkg.id ? (
+                               <div className="flex items-center">
+                                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                                 Processing...
+                               </div>
+                             ) : (
+                               'View Details & Purchase'
+                             )}
+                           </Button>
+                         </CardContent>
+                       </Card>
+                    ))
+                  )}
+                  
+                  {/* View all button for preview mode */}
+                  {isPreview && limitedBasic.length > 0 && (
+                    <div className="col-span-full flex justify-center mt-6">
+                      <Link href="/packages/all">
+                        <Button className="rounded-lg px-6 py-2 bg-slate-800 hover:bg-slate-700 text-white hover:shadow-md transition-all duration-200 text-sm">
+                          View all packages
+                        </Button>
+                      </Link>
                     </div>
                   )}
-                  {limitedBasic.map((pkg, idx) => (
-                  <Card key={pkg.id} className={`w-full max-w-sm relative overflow-hidden rounded-3xl border-0 shadow-xl hover:shadow-2xl transition-all duration-500 transform hover:-translate-y-2 ${
-                    idx === 0 ? 'ring-2 ring-blue-500 scale-105' : ''
-                  }`}>
-                    {/* Popular Badge */}
-                    {idx === 0 && (
-                      <div className="absolute top-0 right-0 bg-gradient-to-r from-blue-500 to-teal-500 text-white px-4 py-2 rounded-bl-2xl">
-                        <div className="flex items-center">
-                          <Star className="h-4 w-4 mr-1" />
-                          <span className="font-bold text-sm">Most Popular</span>
-                        </div>
-                      </div>
-                    )}
-                    
-                    <CardHeader className="text-center pb-4 bg-gradient-to-br from-slate-50 to-white">
-                      <CardTitle className="text-2xl font-bold text-slate-800 mb-2">{pkg.name}</CardTitle>
-                      <div className="flex items-center justify-center mb-4">
-                        <span className="text-4xl font-bold text-slate-800">{pkg.price?.toLocaleString()}</span>
-                        <span className="text-2xl text-slate-600 ml-1">$</span>
-                      </div>
-                      <div className="text-slate-600 font-medium">Basic package</div>
-                      <p className="text-slate-600 mt-3 text-sm leading-relaxed">{pkg.description}</p>
-                      {/* Thông tin bổ sung */}
-                      <div className="mt-2 text-xs text-slate-500 space-y-1 text-left">
-                        {pkg.locationName && <div><span className="font-semibold">Location:</span> {pkg.locationName}</div>}
-                        {pkg.basicPlanTypeCode && <div><span className="font-semibold">Type:</span> {pkg.basicPlanTypeCode}</div>}
-                       
-                      </div>
-                    </CardHeader>
-                    
-                    <CardContent className="space-y-6 p-6">
-                      {/* Package Details */}
-                      <div className="bg-slate-50 rounded-2xl p-4">
-                        <h4 className="font-bold text-slate-800 mb-3 flex items-center">
-                          <Award className="h-4 w-4 mr-2 text-blue-600" />
-                          Package Details
-                        </h4>
-                        <div className="space-y-2 text-sm">
-                          <div className="flex justify-between">
-                            <span className="text-slate-600">Code:</span>
-                            <span className="font-semibold text-slate-800">{pkg.code}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-slate-600">Duration:</span>
-                            <span className="font-semibold text-slate-800">
-                              {(() => {
-                                if (Array.isArray(pkg.durations) && pkg.durations.length > 0) {
-                                  return pkg.durations.map((d: any) =>
-                                    d.value && d.unit ? `${d.value} ${d.unit}` : d.durationName || ''
-                                  ).join(', ');
-                                }
-                                if (pkg.durations && typeof pkg.durations === 'object' && pkg.durations.value && pkg.durations.unit) {
-                                  return `${pkg.durations.value} ${pkg.durations.unit}`;
-                                }
-                                return 'N/A';
-                              })()}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
+                </div>
+              )}
 
-                      {/* Services */}
-                      <div>
-                        <h4 className="font-bold text-slate-800 mb-3 flex items-center">
-                          <Zap className="h-4 w-4 mr-2 text-blue-600" />
-                          Included Services
-                        </h4>
-                        {pkg.acomodations && pkg.acomodations.length > 0 ? (
-                          <div className="space-y-2">
-                            {pkg.acomodations.map((a: any, i: number) => {
-                              const accommodationId = a.accomodationId;
-                              const info = accommodationInfo[accommodationId];
-                              const loading = loadingAccommodation[accommodationId];
-                              const expanded = expandedAccommodations[accommodationId];
-                              const hasDetail = info && (info.capacity !== undefined || info.pricePerNight !== undefined || info.description);
-                              return (
-                                <div key={accommodationId || i} className="flex flex-col">
-                                  <div className="flex items-center text-sm group">
-                                    {loading ? (
-                                      <>
-                                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
-                                        <span className="text-slate-500">Loading...</span>
-                                      </>
-                                    ) : info ? (
-                                      <>
-                                        <Check className="h-4 w-4 text-teal-500 mr-2 flex-shrink-0" />
-                                        <span className="text-slate-700 font-semibold">{info.roomTypeName || a.roomType || "Room"}</span>
-                                        {hasDetail && (
-                                          <span
-                                            className={`ml-2 cursor-pointer transition-transform ${expanded ? 'rotate-180' : ''}`}
-                                            onClick={() => setExpandedAccommodations(prev => ({ ...prev, [accommodationId]: !prev[accommodationId] }))}
-                                          >▼</span>
-                                        )}
-                                      </>
-                                    ) : (
-                                      <span className="text-slate-500 italic">No info</span>
-                                    )}
-                                  </div>
-                                  {expanded && info && (
-                                    <div className="ml-6 mt-1 text-xs text-slate-600 space-y-1">
-                                      {typeof info.capacity !== 'undefined' && (
-                                        <div>
-                                          <span className="font-semibold">Capacity:</span> {info.capacity}
-                                        </div>
-                                      )}
-                                      {typeof info.pricePerNight !== 'undefined' && (
-                                        <div>
-                                          <span className="font-semibold">Price/night:</span> {info.pricePerNight.toLocaleString()}₫
-                                        </div>
-                                      )}
-                                      {info.description && (
-                                        <div>
-                                          <span className="font-semibold">Description:</span> {info.description}
-                                        </div>
-                                      )}
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })}
+              {showType === 'combo' && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 justify-center">
+                  {limitedCombos.length === 0 ? (
+                    <div className="col-span-full text-center py-12">
+                      <div className="bg-white/80 rounded-xl p-6 shadow-sm">
+                        <Sparkles className="w-12 h-12 text-slate-400 mx-auto mb-3" />
+                        <h3 className="text-lg font-semibold text-slate-600 mb-2">No Combo Packages Available</h3>
+                        <p className="text-slate-500 text-sm">No combo packages are currently available for the selected location.</p>
+                      </div>
+                    </div>
+                  ) : (
+                    limitedCombos.map((pkg, idx) => (
+                      <Card key={pkg.id} className={`w-full relative overflow-hidden rounded-2xl border-0 shadow-lg hover:shadow-xl transition-all duration-500 transform hover:-translate-y-2 min-h-[480px] ${
+                        idx === 0 ? 'ring-2 ring-[#5661b3] border-[#5661b3] shadow-2xl' : ''
+                      }`}>
+                        {/* Popular Badge */}
+                        {idx === 0 && (
+                          <div className="absolute top-4 right-4 bg-gradient-to-r from-[#5661b3] to-[#4f5aa1] text-white px-3 py-1.5 rounded-full text-xs font-semibold z-10 shadow-lg">
+                            <div className="flex items-center">
+                              <Star className="h-3 w-3 mr-1.5" />
+                              <span>Most Popular</span>
+                            </div>
                           </div>
-                        ) : pkg.basicPlanTypeCode === 'LIFEACTIVITIES' && pkg.entitlements && pkg.entitlements.length > 0 ? (
-                          <div className="space-y-2">
-                            {pkg.entitlements.map((e: any, i: number) => {
-                              const entitlementId = e.entitlementId;
-                              const info = accommodationInfo[entitlementId];
-                              const loading = loadingAccommodation[entitlementId];
-                              const expanded = expandedAccommodations[entitlementId];
-                              return (
-                                <div key={entitlementId || i} className="flex flex-col">
-                                  <div className="flex items-center text-sm group cursor-pointer" onClick={() => {
-                                    setExpandedAccommodations(prev => ({ ...prev, [entitlementId]: !prev[entitlementId] }));
-                                    if (!info && !loading) {
-                                      setLoadingAccommodation(prev => ({ ...prev, [entitlementId]: true }));
-                                      api.get(`/api/membership/EntitlementRule/${entitlementId}`)
-                                        .then(res => setAccommodationInfo(prev => ({ ...prev, [entitlementId]: res.data || res })))
-                                        .catch(() => setAccommodationInfo(prev => ({ ...prev, [entitlementId]: null })))
-                                        .finally(() => setLoadingAccommodation(prev => ({ ...prev, [entitlementId]: false })));
-                                    }
-                                  }}>
-                                    <Check className="h-4 w-4 text-teal-500 mr-2 flex-shrink-0" />
-                                    <span className="text-slate-700 font-semibold">
-                                      {(info && info.nextUServiceName) ? info.nextUServiceName : e.nextUServiceName}
-                                    </span>
-                                    <span className={`ml-2 transition-transform ${expanded ? 'rotate-180' : ''}`}>▼</span>
-                                  </div>
-                                  {expanded && (
-                                    loading ? (
-                                      <div className="ml-6 mt-1 text-xs text-slate-500">Loading...</div>
-                                    ) : info && (
-                                      <div className="ml-6 mt-1 text-xs text-slate-600 space-y-1">
-                                        {typeof info.price !== 'undefined' && (
-                                          <div>
-                                            <span className="font-semibold">Price:</span> {info.price}
-                                          </div>
-                                        )}
-                                        {typeof info.creditAmount !== 'undefined' && (
-                                          <div>
-                                            <span className="font-semibold">Credit Amount:</span> {info.creditAmount}
-                                          </div>
-                                        )}
-                                        {typeof info.period !== 'undefined' && (
-                                          <div>
-                                            <span className="font-semibold">Period:</span> {info.period}
-                                          </div>
-                                        )}
-                                        {info.note && (
-                                          <div>
-                                            <span className="font-semibold">Note:</span> {info.note}
-                                          </div>
-                                        )}
-                                      </div>
-                                    )
-                                  )}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        ) : (
-                          <div className="text-slate-500 text-sm italic">No included services</div>
                         )}
-                      </div>
-
-                      {/* CTA Button */}
-                      <Button
-                        className="w-full rounded-2xl bg-gradient-to-r from-slate-800 to-slate-700 hover:from-slate-700 hover:to-slate-600 text-white font-semibold py-4 shadow-lg hover:shadow-xl transition-all duration-300"
-                        onClick={() => handleRequestPackage(pkg.id, pkg.id, 'basic')}
-                        disabled={requestingPackageId === pkg.id}
-                      >
-                        {requestingPackageId === pkg.id ? 'Requesting...' : 'Detail package'}
-                      </Button>
-                    </CardContent>
-                  </Card>
-                ))}
-                {/* View all button for preview mode */}
-                {isPreview && (
-                  <div className="col-span-full flex justify-center mt-8">
-                    <Link href="/packages/all">
-                      <Button className="rounded-full px-8 py-3 bg-gradient-to-r from-[#28c4dd] to-[#5661b3] text-white hover:shadow-lg transition-all duration-300">
-                        View all packages
-                      </Button>
-                    </Link>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {showType === 'combo' && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-8 justify-center">
-                {limitedCombos.length === 0 && (
-                  <div className="w-full text-center py-12">
-                    <div className="text-slate-500 text-lg">No combo packages available for {selectedLocation}.</div>
-                  </div>
-                )}
-                {limitedCombos.map((pkg, idx) => (
-                  <Card key={pkg.id} className={`w-full max-w-md relative overflow-hidden rounded-3xl border-0 shadow-xl hover:shadow-2xl transition-all duration-500 transform hover:-translate-y-2 ${
-                    idx === 0 ? 'ring-2 ring-teal-500 scale-105' : ''
-                  }`}>
-                    {/* Popular Badge */}
-                    {idx === 0 && (
-                      <div className="absolute top-0 right-0 bg-gradient-to-r from-teal-500 to-blue-500 text-white px-4 py-2 rounded-bl-2xl">
-                        <div className="flex items-center">
-                          <Star className="h-4 w-4 mr-1" />
-                          <span className="font-bold text-sm">Most Popular</span>
-                        </div>
-                      </div>
-                    )}
-                    <CardHeader className="text-center pb-4 bg-gradient-to-br from-teal-50 to-blue-50">
-                      <CardTitle className="text-2xl font-bold text-slate-800 mb-2">{pkg.name}</CardTitle>
-                      <div className="flex items-center justify-center mb-4">
-                        <span className="text-4xl font-bold text-slate-800">{pkg.totalPrice?.toLocaleString()}</span>
-                        <span className="text-2xl text-slate-600 ml-1">₫</span>
-                      </div>
-                      <div className="text-slate-600 font-medium">Combo package</div>
-                      <p className="text-slate-600 mt-3 text-sm leading-relaxed">{pkg.description}</p>
-                    </CardHeader>
-                    <CardContent className="space-y-6 p-6">
-                      {/* Combo Details */}
-                      <div className="bg-gradient-to-r from-teal-50 to-blue-50 rounded-2xl p-4">
-                        <h4 className="font-bold text-slate-800 mb-3 flex items-center">
-                          <Award className="h-4 w-4 mr-2 text-teal-600" />
-                          Combo Details
-                        </h4>
-                        <div className="space-y-2 text-sm">
-                          <div className="flex justify-between">
-                            <span className="text-slate-600">Discount:</span>
-                            <span className="font-bold text-teal-600 bg-teal-100 px-2 py-1 rounded-full">
-                              {pkg.discountRate * 100}%
-                            </span>
+                        
+                        {/* Header Section with Gradient */}
+                        <div className="relative h-48 bg-gradient-to-br from-purple-50 via-indigo-50 to-blue-50 overflow-hidden">
+                          {/* Background Pattern */}
+                          <div className="absolute inset-0 opacity-10">
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-[#5661b3] rounded-full -translate-y-16 translate-x-16"></div>
+                            <div className="absolute bottom-0 left-0 w-24 h-24 bg-[#4f5aa1] rounded-full translate-y-12 -translate-x-12"></div>
                           </div>
-                          <div className="flex justify-between">
-                            <span className="text-slate-600">Location:</span>
-                            <span className="font-semibold text-slate-800">{pkg.locationName}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-slate-600">Level:</span>
-                            <span className="font-semibold text-slate-800">{pkg.packageLevelName}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-slate-600">Basic Packages:</span>
-                            <span className="font-semibold text-slate-800">{Array.isArray(pkg.basicPlanIds) ? pkg.basicPlanIds.length : 0}</span>
+                          
+                          {/* Content */}
+                          <div className="relative z-10 p-6 text-center h-full flex flex-col justify-center">
+                            <div className="mb-3">
+                              <Badge className="bg-white/80 text-slate-700 border-0 px-3 py-1 text-xs font-medium">
+                                Combo Package
+                              </Badge>
+                            </div>
+                            <CardTitle className="text-xl font-bold text-slate-800 mb-3 leading-tight">{pkg.name}</CardTitle>
+                            <div className="flex items-center justify-center mb-2">
+                              <span className="text-3xl font-bold text-slate-800">{pkg.totalPrice?.toLocaleString()}</span>
+                              <span className="text-lg text-slate-600 ml-1">₫</span>
+                            </div>
+                            <div className="text-slate-600 text-sm font-medium mb-2">
+                              <span className="bg-[#5661b3]/10 text-[#5661b3] px-2 py-1 rounded-full text-xs font-semibold">
+                                {pkg.discountRate * 100}% discount
+                              </span>
+                            </div>
+                            {/* Duration Display */}
+                            {pkg.packageDurations && pkg.packageDurations.length > 0 && (
+                              <div className="text-slate-600 text-sm font-medium">
+                                {(() => {
+                                  const duration = pkg.packageDurations[0];
+                                  const durationId = duration.durationId;
+                                  const durationInfo = durationDetails[durationId];
+                                  const loading = loadingDurations[durationId];
+                                  
+                                  if (loading) {
+                                    return <span className="text-xs text-slate-500">Loading duration...</span>;
+                                  }
+                                  
+                                  if (durationInfo && durationInfo.value && durationInfo.unit) {
+                                    return <span>{durationInfo.value} {durationInfo.unit}</span>;
+                                  }
+                                  
+                                  return null;
+                                })()}
+                              </div>
+                            )}
                           </div>
                         </div>
-                      </div>
-                      {/* CTA Button */}
-                      <Button
-                        className="w-full rounded-2xl bg-gradient-to-r from-teal-600 to-blue-600 hover:from-teal-700 hover:to-blue-700 text-white font-semibold py-4 shadow-lg hover:shadow-xl transition-all duration-300"
-                        onClick={() => router.push(`/packages/combo/${pkg.id}`)}
-                      >
-                        Detail combo
-                      </Button>
-                    </CardContent>
-                  </Card>
-                ))}
-                {/* View all button for preview mode */}
-                {isPreview && (
-                  <div className="col-span-full flex justify-center mt-8">
-                    <Link href="/packages/all">
-                      <Button className="rounded-full px-8 py-3 bg-gradient-to-r from-teal-600 to-blue-600 text-white hover:shadow-lg transition-all duration-300">
-                        View all packages
-                      </Button>
-                    </Link>
-                  </div>
-                )}
+                       
+                        <CardContent className="p-5 space-y-4">
+                          {/* Package Details & Description */}
+                          <div className="bg-slate-50 rounded-lg p-4">
+                            <h4 className="font-semibold text-slate-800 mb-3 flex items-center text-sm">
+                              <Award className="h-4 w-4 mr-2 text-[#5661b3]" />
+                              Package Details
+                            </h4>
+                            
+                            {/* Info Grid */}
+                            <div className="grid grid-cols-2 gap-3 mb-4">
+                              {pkg.basicPlanCategoryName && (
+                                <div className="flex justify-between items-center">
+                                  <span className="text-xs text-slate-500">Category:</span>
+                                  <span className="text-sm font-medium text-slate-800">{pkg.basicPlanCategoryName}</span>
+                                </div>
+                              )}
+                              {pkg.planLevelName && (
+                                <div className="flex justify-between items-center">
+                                  <span className="text-xs text-slate-500">Level:</span>
+                                  <span className="text-sm font-medium text-slate-800">{pkg.planLevelName}</span>
+                                </div>
+                              )}
+                              {pkg.targetAudienceName && (
+                                <div className="flex justify-between items-center">
+                                  <span className="text-xs text-slate-500">Target:</span>
+                                  <span className="text-sm font-medium text-slate-800">{pkg.targetAudienceName}</span>
+                                </div>
+                              )}
+                              <div className="flex justify-between items-center">
+                                <span className="text-xs text-slate-500">Code:</span>
+                                <span className="text-sm font-medium text-slate-800 font-mono">{pkg.code}</span>
+                              </div>
+                            </div>
+                            
+                            {/* Divider */}
+                            <div className="border-t border-slate-200 my-3"></div>
+                            
+                            {/* Description */}
+                            <div className="h-[4rem]">
+                              <div className="text-xs text-slate-500 mb-2">Description</div>
+                              <div className="h-[3rem] overflow-hidden">
+                                <p className="text-slate-700 text-sm leading-relaxed line-clamp-3">
+                                  {pkg.description || 'No description available'}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Included Packages Section */}
+                          <div>
+                            <h4 className="font-semibold text-slate-800 mb-2 flex items-center text-sm">
+                              <Sparkles className="h-4 w-4 mr-2 text-[#5661b3]" />
+                              Included Packages
+                            </h4>
+                            {pkg.basicPlanIds && pkg.basicPlanIds.length > 0 ? (
+                              <div className="space-y-2">
+                                {/* Group basic plans by type */}
+                                {(() => {
+                                  const plansByType: { [key: string]: any[] } = {};
+                                  
+                                  pkg.basicPlanIds.forEach((planId: string) => {
+                                    const planDetail = basicPlanDetails[planId];
+                                    if (planDetail) {
+                                      const type = planDetail.basicPlanType || planDetail.basicPlanTypeCode || 'Other';
+                                      if (!plansByType[type]) {
+                                        plansByType[type] = [];
+                                      }
+                                      plansByType[type].push(planDetail);
+                                    }
+                                  });
+
+                                  return Object.entries(plansByType).map(([type, plans]) => (
+                                    <div key={type} className="bg-white rounded-lg p-3 border border-slate-100">
+                                      {/* Type Header */}
+                                      <div className="flex items-center mb-2">
+                                        <Check className="h-4 w-4 text-green-500 mr-2 flex-shrink-0" />
+                                        <span className="text-slate-700 font-semibold text-sm">{type}</span>
+                                      </div>
+                                      
+                                      {/* Plans under this type */}
+                                      <div className="ml-6 space-y-1">
+                                        {plans.map((plan, planIdx) => (
+                                          <div key={planIdx} className="flex items-center">
+                                            <div className="w-2 h-2 bg-slate-300 rounded-full mr-2 flex-shrink-0"></div>
+                                            <span className="text-slate-600 text-xs">{plan.name}</span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  ));
+                                })()}
+                                
+                                {/* Show loading for plans that haven't been fetched yet */}
+                                {pkg.basicPlanIds.some((planId: string) => loadingBasicPlans[planId]) && (
+                                  <div className="bg-white rounded-lg p-3 border border-slate-100">
+                                    <div className="flex items-center">
+                                      <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-[#5661b3] mr-2"></div>
+                                      <span className="text-slate-500 text-sm">Loading package details...</span>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="bg-slate-50 rounded-lg p-4 text-center">
+                                <div className="text-slate-400 text-sm">No included packages</div>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* CTA Button */}
+                          <Button
+                            className="w-full rounded-xl bg-gradient-to-r from-[#5661b3] to-[#4f5aa1] hover:from-[#4f5aa1] hover:to-[#5661b3] text-white font-semibold py-3 shadow-lg hover:shadow-xl transition-all duration-300 text-sm"
+                            onClick={() => handleRequestPackage(pkg.id, pkg.id, 'combo')}
+                            disabled={requestingPackageId === pkg.id}
+                          >
+                            {requestingPackageId === pkg.id ? (
+                              <div className="flex items-center">
+                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                                Processing...
+                              </div>
+                            ) : (
+                              'View Details & Purchase'
+                            )}
+                          </Button>
+                        </CardContent>
+                      </Card>
+                    ))
+                  )}
+                  
+                  {/* View all button for preview mode */}
+                  {isPreview && limitedCombos.length > 0 && (
+                    <div className="col-span-full flex justify-center mt-6">
+                      <Link href="/packages/all">
+                        <Button className="rounded-lg px-6 py-2 bg-[#5661b3] hover:bg-[#4f5aa1] text-white hover:shadow-md transition-all duration-200 text-sm">
+                          View all packages
+                        </Button>
+                      </Link>
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="text-center py-12">
+              <div className="bg-white/80 rounded-xl p-8 shadow-sm max-w-xl mx-auto">
+                <Building2 className="w-16 h-16 text-slate-400 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-slate-600 mb-3">No Location Selected</h3>
+                <p className="text-slate-500 mb-4 text-sm">Please select a city, location, and property above to view available packages.</p>
+                <div className="text-xs text-slate-400 space-y-1">
+                  <p>Available cities: {cities.length}</p>
+                  <p>Available locations: {locations.length}</p>
+                  <p>Available properties: {properties.length}</p>
+                </div>
               </div>
-            )}
-          </>
-        ) : (
-          <div className="text-center py-20 text-slate-400">Please select city, location, and property to view packages.</div>
-        )}
+            </div>
+          )}
         </div>
       </section>
     </div>
