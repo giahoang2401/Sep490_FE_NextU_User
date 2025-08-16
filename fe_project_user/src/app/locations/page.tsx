@@ -186,7 +186,7 @@ export default function LocationSelectionPage() {
               key={property.id}
               className="overflow-hidden rounded-2xl border-0 shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer group bg-white"
             >
-              <Link href={`/properties/${property.id}`}>
+              <Link href={`/locations/${property.id}`}>
                 <div className="relative h-48">
                   <Image 
                     src={getPropertyImage(property)}

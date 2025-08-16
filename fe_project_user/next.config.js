@@ -20,6 +20,12 @@ const nextConfig = {
         port: '',
         pathname: '/wp-content/uploads/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'nextumedialib.blob.core.windows.net',
+        port: '',
+        pathname: '/media-files/**',
+      },
     ],
   },
 };

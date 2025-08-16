@@ -31,18 +31,33 @@ export interface RoomInstance {
   roomName: string
   descriptionDetails: string
   status: string
-  floor: string
+  areaInSquareMeters: number
+  roomSizeName: string
+  roomViewName: string
+  roomFloorName: string
+  bedTypeName: string
+  numberOfBeds: number
   roomTypeName: string
-  locationId: string
-  locationName: string
+  addOnFee: number
+  propertyId: string
+  propertyName: string
+  propertyFullName: string | null
+  medias: Array<{
+    id: string
+    url: string
+    type: string
+    description: string
+    actorType: number
+    actorId: string
+  }>
 }
 
 export interface AccommodationOption {
   id: string
   roomTypeId: number
   roomTypeName: string
-  locationId: string
-  locationName: string
+  propertyId: string
+  propertyName: string
   nextUServiceId: string
   nextUServiceName: string
   capacity: number
@@ -69,7 +84,26 @@ export const roomService = {
     return response.data.data
   },
 
-  // Lấy danh sách room instances theo location
+  // Lấy danh sách accommodation options
+  getAccommodationOptions: async (): Promise<AccommodationOption[]> => {
+    const response = await api.get('/api/membership/AccommodationOptions')
+    return response.data
+  },
+
+  // Lấy danh sách room instances
+  getRoomInstances: async (): Promise<RoomInstance[]> => {
+    const response = await api.get('/api/membership/RoomInstances')
+    return response.data
+  },
+
+  // Lấy room instances theo property
+  getRoomInstancesByProperty: async (propertyId: string): Promise<RoomInstance[]> => {
+    const response = await api.get('/api/membership/RoomInstances')
+    const allRooms = response.data
+    return allRooms.filter((room: RoomInstance) => room.propertyId === propertyId)
+  },
+
+  // Lấy danh sách room instances theo location (legacy)
   getRoomInstancesByLocation: async (locationId: string): Promise<RoomInstance[]> => {
     const response = await api.get(`/api/membership/RoomInstances/by-location/${locationId}`)
     return response.data
