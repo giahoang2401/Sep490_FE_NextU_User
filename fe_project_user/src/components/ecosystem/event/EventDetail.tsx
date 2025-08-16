@@ -2690,7 +2690,7 @@ export default function EventDetail({ event, onBackClick }: EventDetailProps) {
                     size="sm"
                     onClick={() => {
                       setShowPendingModal(false)
-                      router.push('/my-bookings')
+                      router.push('/my-bookings/event-bookings')
                     }}
                     className="bg-orange-600 hover:bg-orange-700 text-white"
                   >

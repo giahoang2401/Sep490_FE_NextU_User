@@ -1,9 +1,27 @@
 import api from './axiosConfig'
 
-export interface Location {
+export interface City {
   id: string
   name: string
   description: string
+}
+
+export interface Location {
+  id: string
+  name: string
+  description: string | null
+  cityId: string
+  cityName: string
+}
+
+export interface Property {
+  id: string
+  name: string
+  description: string
+  locationId: string
+  locationName: string
+  cityId: string
+  cityName: string
 }
 
 export interface RoomInstance {
@@ -33,10 +51,22 @@ export interface AccommodationOption {
 }
 
 export const roomService = {
+  // Lấy danh sách cities
+  getCities: async (): Promise<City[]> => {
+    const response = await api.get('/api/basePosition/cities')
+    return response.data.data
+  },
+
   // Lấy danh sách locations
   getLocations: async (): Promise<Location[]> => {
-    const response = await api.get('/api/user/locations')
-    return response.data
+    const response = await api.get('/api/basePosition/locations')
+    return response.data.data
+  },
+
+  // Lấy danh sách properties
+  getProperties: async (): Promise<Property[]> => {
+    const response = await api.get('/api/basePosition/properties')
+    return response.data.data
   },
 
   // Lấy danh sách room instances theo location
