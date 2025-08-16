@@ -202,25 +202,36 @@ export default function EventDetail({ event, onBackClick }: EventDetailProps) {
   const initializeRecurringTickets = async () => {
     const allSchedules = getAllSchedules()
     const nonExpiredSchedules = allSchedules.filter(schedule => !isScheduleExpired(schedule))
+    
+    // Fetch quota data for ALL tickets in all schedules first
+    const allTicketIds = nonExpiredSchedules.flatMap(schedule => 
+      schedule.ticketTypes.map(ticket => ticket.id)
+    )
+    
+    const quotaPromises = allTicketIds.map(ticketId => fetchTicketQuota(ticketId))
+    await Promise.all(quotaPromises)
+    
+    // Then select the first valid ticket for each schedule (not max per user reached)
     const initialTickets: SelectedRecurringTicket[] = nonExpiredSchedules.map(schedule => {
-      const firstTicket = schedule.ticketTypes[0]
+      // Find the first ticket that user can still select
+      const validTicket = schedule.ticketTypes.find(ticket => {
+        const quotaCheck = checkQuotaRestrictions(ticket.id)
+        return quotaCheck.canSelectWithWarning
+      })
+      
+      // If no valid ticket found, fallback to first ticket
+      const selectedTicket = validTicket || schedule.ticketTypes[0]
+      
       return {
         scheduleId: schedule.id,
-        ticketTypeId: firstTicket?.id || '',
+        ticketTypeId: selectedTicket?.id || '',
         scheduleName: `${formatDate(schedule.startTime)} - ${formatScheduleTime(schedule.startTime, schedule.endTime)}`,
-        ticketName: firstTicket?.name || 'No tickets available',
-        price: firstTicket?.price || 0
+        ticketName: selectedTicket?.name || 'No tickets available',
+        price: selectedTicket?.price || 0
       }
     })
-    setSelectedRecurringTickets(initialTickets)
     
-    // Fetch quota data for all tickets
-    if (initialTickets.length > 0) {
-      const promises = initialTickets.map(ticket => 
-        fetchTicketQuota(ticket.ticketTypeId)
-      )
-      await Promise.all(promises)
-    }
+    setSelectedRecurringTickets(initialTickets)
   }
 
   // Khởi tạo lịch được chọn là lịch gần nhất
@@ -330,6 +341,49 @@ export default function EventDetail({ event, onBackClick }: EventDetailProps) {
     })
     
     return isBeforeEarlyDay && hasDiscountRate
+  }
+
+  // Check if early bird discount is applicable for full schedule booking
+  // For full schedule, if user books before the earliest early bird deadline, 
+  // ALL tickets should get early bird discount regardless of individual earlyDay
+  const isEarlyBirdDiscountApplicableForFullScheduleTicket = (ticketTypeId: string) => {
+    // Get the ticket to check if it has early bird discount rate
+    const schedule = event.schedules.find(s => 
+      s.ticketTypes.some(t => t.id === ticketTypeId)
+    )
+    if (!schedule) return false
+    
+    const ticket = schedule.ticketTypes.find(t => t.id === ticketTypeId)
+    const hasDiscountRate = ticket?.discountRateEarlyBird && ticket.discountRateEarlyBird > 0
+    
+    if (!hasDiscountRate) return false
+    
+    // For full schedule booking, find the earliest earlyDay among all selected tickets
+    const allEarlyDays = selectedRecurringTickets
+      .map(t => ticketQuota[t.ticketTypeId]?.earlyDay)
+      .filter(Boolean)
+      .map(day => new Date(day))
+    
+    if (allEarlyDays.length === 0) return false
+    
+    // Get the earliest early bird deadline
+    const earliestEarlyDay = new Date(Math.min(...allEarlyDays.map(d => d.getTime())))
+    
+    // Check if current time is before the earliest deadline
+    const now = new Date()
+    const isBeforeEarliestEarlyDay = now < earliestEarlyDay
+    
+    console.log('Early bird discount check for full schedule ticket:', {
+      ticketTypeId,
+      ticketName: ticket?.name,
+      hasDiscountRate,
+      earliestEarlyDay: earliestEarlyDay.toISOString(),
+      now: now.toISOString(),
+      isBeforeEarliestEarlyDay,
+      willApply: isBeforeEarliestEarlyDay && hasDiscountRate
+    })
+    
+    return isBeforeEarliestEarlyDay && hasDiscountRate
   }
 
   // Get early bird discount rate for a ticket
@@ -446,7 +500,8 @@ export default function EventDetail({ event, onBackClick }: EventDetailProps) {
       const originalPrice = ticket.price
       
       // Get discount rates from API (with proper validation)
-      const hasEarlyBirdDiscount = isEarlyBirdDiscountApplicable(ticket.ticketTypeId)
+      // For full schedule booking, use the special early bird check
+      const hasEarlyBirdDiscount = isEarlyBirdDiscountApplicableForFullScheduleTicket(ticket.ticketTypeId)
       const earlyBirdRate = hasEarlyBirdDiscount ? getTicketEarlyBirdDiscountRate(ticket.ticketTypeId) : 0
       const comboRate = getTicketComboDiscountRate(ticket.ticketTypeId) || 0 // Handle null case
       
@@ -1001,19 +1056,23 @@ export default function EventDetail({ event, onBackClick }: EventDetailProps) {
       return
     }
     
+    // Fetch availability for all tickets in non-expired schedules
+    const nonExpiredSchedules = getAllSchedules().filter(schedule => !isScheduleExpired(schedule))
+    const allTicketIds = nonExpiredSchedules.flatMap(schedule => 
+      schedule.ticketTypes.map(ticket => ticket.id)
+    )
+    
+    // Fetch availability data
+    const availabilityPromises = allTicketIds.map(ticketId => fetchTicketAvailability(ticketId))
+    await Promise.all(availabilityPromises)
+    
+    // Initialize recurring tickets (this will also fetch quota data)
     await initializeRecurringTickets()
     
-    // Fetch quota data for all tickets to ensure early bird discount logic works
-    if (selectedRecurringTickets.length > 0) {
-      const promises = selectedRecurringTickets.map(ticket => 
-        fetchTicketQuota(ticket.ticketTypeId)
-      )
-      await Promise.all(promises)
-    }
-    
-    console.log('After initializeRecurringTickets and quota fetch:', {
+    console.log('After initializeRecurringTickets and data fetch:', {
       selectedRecurringTickets: selectedRecurringTickets,
-      ticketQuota: ticketQuota
+      ticketQuota: ticketQuota,
+      ticketAvailability: ticketAvailability
     })
     
     setShowRecurringModal(true)
@@ -1027,11 +1086,30 @@ export default function EventDetail({ event, onBackClick }: EventDetailProps) {
   }
 
   // Handler for changing ticket type in recurring booking
-  const handleRecurringTicketChange = (scheduleId: string, ticketTypeId: string) => {
+  const handleRecurringTicketChange = async (scheduleId: string, ticketTypeId: string) => {
     const schedule = event.schedules.find(s => s.id === scheduleId)
     const ticket = schedule?.ticketTypes.find(t => t.id === ticketTypeId)
     
     if (schedule && ticket) {
+      // Fetch quota data if not already loaded
+      if (!ticketQuota[ticketTypeId]) {
+        await fetchTicketQuota(ticketTypeId)
+      }
+      
+      // Check quota restrictions
+      const quotaCheck = checkQuotaRestrictions(ticketTypeId)
+      
+      if (quotaCheck.showPopup) {
+        // Show detailed popup for pending requests
+        setPendingTicketName(ticket.name)
+        setShowPendingModal(true)
+        return
+      }
+      
+      if (!quotaCheck.canSelect) {
+        return
+      }
+      
       setSelectedRecurringTickets(prev => prev.map(item => {
         if (item.scheduleId === scheduleId) {
           return {
@@ -2233,14 +2311,17 @@ export default function EventDetail({ event, onBackClick }: EventDetailProps) {
                           <div className="space-y-2">
                             {schedule.ticketTypes.map((ticket) => {
                               const availability = ticketAvailability[ticket.id]
-                              const isLoadingThisTicket = loadingAvailability[ticket.id]
+                              const quota = ticketQuota[ticket.id]
+                              const isLoadingThisTicket = loadingAvailability[ticket.id] || loadingQuota[ticket.id]
                               
                               // Use API data if available, otherwise fall back to event data
                               const remaining = availability ? availability.remaining : ticket.totalQuantity
                               const totalQuantity = availability ? availability.totalQuantity : ticket.totalQuantity
                               const sold = availability ? availability.sold : 0
                               
-                              const isSoldOut = remaining <= 0
+                              // Check quota restrictions
+                              const quotaCheck = checkQuotaRestrictions(ticket.id)
+                              const isSoldOut = remaining <= 0 || !quotaCheck.canSelectWithWarning
                               
                               return (
                                 <div key={ticket.id} className={`flex items-center space-x-3 p-3 border rounded-lg transition-all ${isSoldOut ? 'opacity-50 bg-gray-50' : 'hover:shadow-sm'}`}>
@@ -2268,13 +2349,34 @@ export default function EventDetail({ event, onBackClick }: EventDetailProps) {
                                           <span className="font-medium">{remaining}/{totalQuantity}</span>
                                         </p>
                                         
-                                        {remaining > 0 && remaining <= 5 && (
+                                        {/* Quota restriction message for max reached */}
+                                        {!quotaCheck.canSelectWithWarning && (
+                                          <p className="text-xs text-red-500 font-medium">
+                                            🚫 {quotaCheck.message}
+                                          </p>
+                                        )}
+                                        
+                                        {/* Pending request warning */}
+                                        {quotaCheck.showPopup && (
+                                          <p className="text-xs text-orange-600 font-medium">
+                                            ⚠️ You have pending requests
+                                          </p>
+                                        )}
+                                        
+                                        {/* Quota info for valid tickets */}
+                                        {quotaCheck.canSelectWithWarning && quota && !quotaCheck.showPopup && (
+                                          <p className="text-xs text-blue-600">
+                                            Max per user: {quota.remainingForUser}/{quota.maxPerUser}
+                                          </p>
+                                        )}
+                                        
+                                        {remaining > 0 && remaining <= 5 && quotaCheck.canSelectWithWarning && (
                                           <p className="text-xs text-orange-600 font-medium">
                                             ⚠️ Only {remaining} left!
                                           </p>
                                         )}
                                         
-                                        {isSoldOut && (
+                                        {remaining <= 0 && (
                                           <p className="text-sm text-red-500 font-medium">🚫 Sold out</p>
                                         )}
                                       </div>
@@ -2282,7 +2384,8 @@ export default function EventDetail({ event, onBackClick }: EventDetailProps) {
                                   </div>
                                   <div className="text-right">
                                     {(() => {
-                                      const isEarlyBirdApplicable = isEarlyBirdDiscountApplicable(ticket.id)
+                                      // For full schedule booking, use the special early bird check
+                                      const isEarlyBirdApplicable = isEarlyBirdDiscountApplicableForFullScheduleTicket(ticket.id)
                                       const earlyBirdRate = getTicketEarlyBirdDiscountRate(ticket.id)
                                       const comboRate = getTicketComboDiscountRate(ticket.id)
                                       
