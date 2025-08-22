@@ -191,28 +191,42 @@ export default function BasicRoomPackageDetail({ id, router }: { id: string, rou
       setLoading(true);
       try {
         // Fetch package info trước
+        console.log('[DEBUG] Fetching package info...');
         const pkgRes = await api.get(`/api/membership/BasicPlans/${id}`);
         const pkgData = pkgRes.data || pkgRes;
+        console.log('[DEBUG] Package info fetched successfully:', pkgData);
         setPkg(pkgData);
-        // Lấy accommodationId từ pkgData.acomodations[0].accomodationId (đúng key)
-        let accommodationId = undefined;
-        if (pkgData.acomodations && pkgData.acomodations.length > 0) {
-          accommodationId = pkgData.acomodations[0].accomodationId;
-        }
-        let roomsData = [];
-        if (accommodationId) {
-          console.log('[DEBUG] Call API get rooms with accommodationId:', accommodationId);
-          const roomsRes = await api.get(`/api/membership/RoomInstances/by-option/${accommodationId}`);
-          roomsData = roomsRes.data || roomsRes;
-        } else {
-          console.log('[DEBUG] accommodationId not found, skip fetch rooms');
-        }
-        setRooms(roomsData);
+
         // Lấy duration mặc định từ gói
         if (pkgData && pkgData.planDurations && pkgData.planDurations.length > 0) {
           setDuration(pkgData.planDurations[0]);
         }
+
+        // Fetch rooms separately - nếu lỗi thì không ảnh hưởng package info
+        try {
+          // Lấy accommodationId từ pkgData.acomodations[0].accomodationId (đúng key)
+          let accommodationId = undefined;
+          if (pkgData.acomodations && pkgData.acomodations.length > 0) {
+            accommodationId = pkgData.acomodations[0].accomodationId;
+          }
+          
+          let roomsData = [];
+          if (accommodationId) {
+            console.log('[DEBUG] Call API get rooms with accommodationId:', accommodationId);
+            const roomsRes = await api.get(`/api/membership/RoomInstances/by-option/${accommodationId}`);
+            roomsData = roomsRes.data || roomsRes;
+            console.log('[DEBUG] Rooms fetched successfully:', roomsData);
+          } else {
+            console.log('[DEBUG] accommodationId not found, skip fetch rooms');
+          }
+          setRooms(roomsData);
+        } catch (roomsErr) {
+          console.error('[ERROR] Failed to fetch rooms (but package info is OK):', roomsErr);
+          setRooms([]);
+        }
+
       } catch (err) {
+        console.error('[ERROR] Failed to fetch package info:', err);
         setPkg(null);
         setRooms([]);
         setDuration(null);
@@ -303,27 +317,54 @@ export default function BasicRoomPackageDetail({ id, router }: { id: string, rou
     await Promise.all(
       rooms.map(async (room: any) => {
         try {
-          const params: any = {};
-          if (from) params.from = from;
-          if (to) params.to = to;
+          const params: any = { roomId: room.id };
+          
+          // Convert date format from yyyy-MM-dd to MM/dd/yyyy
+          if (from) {
+            // Parse date string directly to avoid timezone issues
+            const [year, month, day] = from.split('-');
+            params.startDate = `${month}/${day}/${year}`;
+          }
+          if (to) {
+            // Parse date string directly to avoid timezone issues
+            const [year, month, day] = to.split('-');
+            params.endDate = `${month}/${day}/${year}`;
+          }
           
           console.log(`Checking room ${room.id} with params:`, params);
           
-          const res = await api.get(`/api/membership/Bookings/room/${room.id}`, { params });
-          if (Array.isArray(res.data) && res.data.length > 0) {
+          const res = await api.get(`/api/membership/Bookings/availability`, { params });
+          const data = res.data || res;
+          
+          if (data.available) {
             results[room.id] = {
-              viewedBookingStatus: res.data[0].viewedBookingStatus,
+              viewedBookingStatus: data.message || 'Available',
               from: from || '',
               to: to || '',
-              startDate: from ? res.data[0].startDate : null,
-              endDate: from ? res.data[0].endDate : null,
+              available: true,
+              message: data.message || 'Available',
             };
           } else {
-            results[room.id] = { viewedBookingStatus: 'unknown', from: from || '', to: to || '', startDate: null, endDate: null };
+            results[room.id] = {
+              viewedBookingStatus: data.message || 'Not available',
+              from: from || '',
+              to: to || '',
+              available: false,
+              message: data.message || 'Not available',
+              availableFrom: data.availableFrom,
+              blockingBookingId: data.blockingBookingId,
+              blockingStatus: data.blockingStatus,
+            };
           }
         } catch (error) {
           console.error(`Error checking room ${room.id}:`, error);
-          results[room.id] = { viewedBookingStatus: 'unknown', from: from || '', to: to || '', startDate: null, endDate: null };
+          results[room.id] = { 
+            viewedBookingStatus: 'unknown', 
+            from: from || '', 
+            to: to || '', 
+            available: false,
+            message: 'Error checking availability'
+          };
         }
       })
     );
@@ -353,8 +394,8 @@ export default function BasicRoomPackageDetail({ id, router }: { id: string, rou
     }
     setSelectedDates({ moveIn: dates.moveIn, moveOut });
     setAvailabilityDates({
-      from: dates.moveIn ? dates.moveIn.toISOString().slice(0, 10) : '',
-      to: moveOut ? moveOut.toISOString().slice(0, 10) : '',
+      from: dates.moveIn ? `${dates.moveIn.getFullYear()}-${String(dates.moveIn.getMonth() + 1).padStart(2, '0')}-${String(dates.moveIn.getDate()).padStart(2, '0')}` : '',
+      to: moveOut ? `${moveOut.getFullYear()}-${String(moveOut.getMonth() + 1).padStart(2, '0')}-${String(moveOut.getDate()).padStart(2, '0')}` : '',
     });
     setShowDatePicker(false);
     setDatePickerSource(null);
@@ -366,8 +407,8 @@ export default function BasicRoomPackageDetail({ id, router }: { id: string, rou
       }));
       // Gọi API check availability với lịch mới, dùng await để đảm bảo tuần tự
       await checkAllRoomsAvailability(
-        dates.moveIn.toISOString().slice(0, 10),
-        moveOut.toISOString().slice(0, 10)
+        `${dates.moveIn.getFullYear()}-${String(dates.moveIn.getMonth() + 1).padStart(2, '0')}-${String(dates.moveIn.getDate()).padStart(2, '0')}`,
+        `${moveOut.getFullYear()}-${String(moveOut.getMonth() + 1).padStart(2, '0')}-${String(moveOut.getDate()).padStart(2, '0')}`
       );
     }
   };
@@ -384,8 +425,8 @@ export default function BasicRoomPackageDetail({ id, router }: { id: string, rou
         };
         setSelectedDates(restoredDates);
         setAvailabilityDates({
-          from: restoredDates.moveIn ? restoredDates.moveIn.toISOString().slice(0, 10) : '',
-          to: restoredDates.moveOut ? restoredDates.moveOut.toISOString().slice(0, 10) : '',
+          from: restoredDates.moveIn ? `${restoredDates.moveIn.getFullYear()}-${String(restoredDates.moveIn.getMonth() + 1).padStart(2, '0')}-${String(restoredDates.moveIn.getDate()).padStart(2, '0')}` : '',
+          to: restoredDates.moveOut ? `${restoredDates.moveOut.getFullYear()}-${String(restoredDates.moveOut.getMonth() + 1).padStart(2, '0')}-${String(restoredDates.moveOut.getDate()).padStart(2, '0')}` : '',
         });
       } catch {}
     }
@@ -536,13 +577,19 @@ export default function BasicRoomPackageDetail({ id, router }: { id: string, rou
                 {/* <h3 className="text-xl font-semibold mb-4">Private rooms</h3> */}
                 {/* Room list as a grid of cards */}
                 <div className="grid grid-cols-1 gap-6">
-                  {rooms.length === 0 && <div className="text-slate-500">Không có phòng nào khả dụng cho gói này.</div>}
+                  {rooms.length === 0 && (
+                    <div className="text-center py-8">
+                      <div className="text-slate-500 mb-2">Không có phòng nào khả dụng cho gói này.</div>
+                      <div className="text-sm text-slate-400">
+                        Có thể do lỗi hệ thống hoặc chưa có phòng được cấu hình.
+                      </div>
+                    </div>
+                  )}
                   {rooms.map((room: any, idx: number) => {
                     const isSelected = selectedRoom && selectedRoom.id === room.id;
                     const availability = roomAvailability[room.id] || {};
                     const status = availability.viewedBookingStatus || '';
-                    const isAvailable = status === 'available';
-                    const availableFrom = status.startsWith('available from') ? status : '';
+                    const isAvailable = availability.available === true;
                     return (
                       <Card key={room.id} className={`border rounded-2xl shadow bg-white/80 ${isSelected ? 'ring-2 ring-blue-500' : ''}`}>
                         <CardContent className="p-6 flex flex-col md:flex-row gap-6 items-center">
@@ -553,9 +600,8 @@ export default function BasicRoomPackageDetail({ id, router }: { id: string, rou
                             <div className="text-slate-500 text-sm mb-1">Loại: {room.roomTypeName}</div>
                           {/* Trạng thái phòng */}
                             <div className="mt-2 text-sm">
-                              {isAvailable && <span className="text-green-600 font-semibold">Available</span>}
-                              {availableFrom && <span className="text-orange-600 font-semibold">{status}</span>}
-                              {!isAvailable && !availableFrom && status && <span className="text-gray-500">{status}</span>}
+                              {isAvailable && <span className="text-green-600 font-semibold">{status}</span>}
+                              {!isAvailable && status && <span className="text-orange-600 font-semibold">{status}</span>}
                             </div>
                           </div>
                           <div className="flex flex-col gap-2 items-center">

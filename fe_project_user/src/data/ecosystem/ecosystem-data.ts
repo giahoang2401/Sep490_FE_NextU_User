@@ -21,6 +21,88 @@ import {
     Ticket,
   } from "lucide-react"
   
+  // Ecosystem Overview Data
+  export const ecosystemOverview = {
+    hero: {
+      title: "Next Universe Ecosystem",
+      subtitle: "A holistic co-living experience combining body, mind, and creativity",
+      description: "Discover our comprehensive ecosystem designed to nurture your personal and professional growth through mindful co-living, creative collaboration, and meaningful connections."
+    },
+    pillars: [
+      {
+        title: "Thân (Body)",
+        description: "Physical wellbeing through fitness, nutrition, and healthy living practices",
+        icon: Heart,
+        color: "bg-green-500",
+        features: ["Daily yoga sessions", "Fitness programs", "Healthy cooking", "Wellness retreats"]
+      },
+      {
+        title: "Tâm (Mind)", 
+        description: "Emotional connection and community building through shared experiences",
+        icon: Brain,
+        color: "bg-blue-500",
+        features: ["Circle talks", "Community events", "Emotional wellness", "Cultural exchange"]
+      },
+      {
+        title: "Trí (Intellect)",
+        description: "Conscious creativity and learning through mentorship and innovation",
+        icon: Lightbulb,
+        color: "bg-purple-500",
+        features: ["Creative mentorship", "Skill development", "Innovation labs", "Tech talks"]
+      }
+    ],
+    services: [
+      {
+        title: "Co-living ",
+        description: "Modern living spaces designed for comfort and community",
+        icon: Home,
+        color: "bg-blue-500",
+        link: "/ecosystem/Co-living",
+        features: ["Villa rooms", "Private studios", "Shared spaces", "Premium amenities"]
+      },
+      {
+        title: "Co-working", 
+        description: "Professional workspaces for productivity and collaboration",
+        icon: Briefcase,
+        color: "bg-green-500",
+        link: "/ecosystem/co-working",
+        features: ["Individual desks", "Meeting rooms", "Private offices", "High-speed internet"]
+      },
+      {
+        title: "Creative Studios",
+        description: "Inspiring spaces for artistic expression and innovation", 
+        icon: Palette,
+        color: "bg-purple-500",
+        link: "/ecosystem/co-creation",
+        features: ["Art studios", "Music production", "Writing sanctuary", "Community café"]
+      },
+      {
+        title: "Events",
+        description: "Diverse learning opportunities and community gatherings",
+        icon: Calendar,
+        color: "bg-red-500", 
+        link: "/ecosystem/events",
+        features: ["Skill workshops", "Networking events", "Cultural programs", "Wellness sessions"]
+      },
+      {
+        title: "Digital Platform",
+        description: "Online learning and community connection tools",
+        icon: Monitor,
+        color: "bg-cyan-500",
+        link: "/ecosystem/digital-platform", 
+        features: ["E-learning courses", "Masterclasses", "Community app", "Virtual events"]
+      },
+      {
+        title: "Experiences",
+        description: "Personalized journeys for growth and discovery",
+        icon: Star,
+        color: "bg-orange-500",
+        link: "/ecosystem/experiences",
+        features: ["Learning clubs", "Masterminds", "Wellness retreats", "Cultural immersion"]
+      }
+    ]
+  }
+
   export const detailedServices = {
     residents: {
       icon: Home,

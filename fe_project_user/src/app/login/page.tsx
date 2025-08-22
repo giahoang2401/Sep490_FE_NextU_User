@@ -30,16 +30,65 @@ export default function LoginPage() {
   const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
 
   const { login } = useAuth();
+
+  // Email validation function
+  const validateEmail = (email: string) => {
+    if (!email) {
+      return "Email is required";
+    }
+    if (!email.includes("@")) {
+      return "Please enter a valid email address";
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return "Please enter a valid email address";
+    }
+    return null;
+  };
+
+  // Password validation function
+  const validatePassword = (password: string) => {
+    if (!password) {
+      return "Password is required";
+    }
+    if (password.length < 6) {
+      return "Password must be at least 6 characters";
+    }
+    return null;
+  };
+
+  // Handle email change with validation
+  const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setEmail(value);
+    setEmailError(validateEmail(value));
+  };
+
+  // Handle password change with validation
+  const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setPassword(value);
+    setPasswordError(validatePassword(value));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setIsLoading(true);
 
-    if (!email || !password) {
-      setError("Please fill in all fields");
+    // Validate all fields before submit
+    const emailValidationError = validateEmail(email);
+    const passwordValidationError = validatePassword(password);
+
+    setEmailError(emailValidationError);
+    setPasswordError(passwordValidationError);
+
+    if (emailValidationError || passwordValidationError) {
+      setError("Please fix the errors above");
       setIsLoading(false);
       return;
     }
@@ -113,10 +162,64 @@ export default function LoginPage() {
 
       router.push("/");
     } catch (err: any) {
-      const errorData = err.response?.data;
-      const msg = errorData?.error_description || errorData?.error || errorData?.message || err?.message || "Login failed.";
+      console.error("Login failed - Full error:", err);
+      console.log("Error type:", typeof err);
+      console.log("Error keys:", Object.keys(err || {}));
+      console.log("Error response:", err.response);
+      console.log("Error data direct:", err.data);
+      console.log("Error config:", err.config);
+      console.log("Error status:", err.status);
+      console.log("Error message:", err.message);
+      
+      // Thử nhiều cách để lấy error data
+      let errorData = null;
+      if (err.response && err.response.data) {
+        errorData = err.response.data;
+        console.log("Using err.response.data:", errorData);
+      } else if (err.data) {
+        errorData = err.data;
+        console.log("Using err.data:", errorData);
+      } else if (err.error || err.error_description) {
+        // Error object chính nó chứa data
+        errorData = err;
+        console.log("Using err directly:", errorData);
+      } else if (typeof err === 'string') {
+        try {
+          errorData = JSON.parse(err);
+          console.log("Parsed string error:", errorData);
+        } catch {
+          console.log("Cannot parse error as JSON");
+        }
+      }
+      
+      console.log("Final errorData:", errorData);
+      
+      // Debug: Log từng trường để kiểm tra
+      if (errorData) {
+        console.log("error_description:", errorData.error_description);
+        console.log("message:", errorData.message);
+        console.log("error:", errorData.error);
+      }
+      
+      // Ưu tiên hiển thị error_description từ API response
+      let msg = "Login failed.";
+      
+      if (errorData && errorData.error_description) {
+        msg = errorData.error_description;
+        console.log("Using error_description:", msg);
+      } else if (errorData && errorData.message) {
+        msg = errorData.message;
+        console.log("Using message:", msg);
+      } else if (errorData && errorData.error) {
+        msg = errorData.error;
+        console.log("Using error:", msg);
+      } else if (err?.message) {
+        msg = err.message;
+        console.log("Using err.message:", msg);
+      }
+      
+      console.log("Final error message to display:", msg);
       setError(msg);
-      console.error("Login failed:", err);
     } finally {
       setIsLoading(false);
     }
@@ -142,7 +245,7 @@ export default function LoginPage() {
             </Alert>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4" noValidate>
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input
@@ -150,10 +253,12 @@ export default function LoginPage() {
                 type="email"
                 placeholder="your@email.com"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="rounded-xl"
-                required
+                onChange={handleEmailChange}
+                className={`rounded-xl ${emailError ? 'border-red-500 focus:border-red-500' : ''}`}
               />
+              {emailError && (
+                <p className="text-sm text-red-500 mt-1">{emailError}</p>
+              )}
             </div>
             <div className="space-y-2">
               <div className="flex items-center justify-between">
@@ -171,9 +276,8 @@ export default function LoginPage() {
                   type={showPassword ? "text" : "password"}
                   placeholder="••••••••"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="rounded-xl pr-10"
-                  required
+                  onChange={handlePasswordChange}
+                  className={`rounded-xl pr-10 ${passwordError ? 'border-red-500 focus:border-red-500' : ''}`}
                 />
                 <button
                   type="button"
@@ -187,6 +291,9 @@ export default function LoginPage() {
                   )}
                 </button>
               </div>
+              {passwordError && (
+                <p className="text-sm text-red-500 mt-1">{passwordError}</p>
+              )}
             </div>
             
             <div className="flex items-center space-x-2">

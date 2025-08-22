@@ -76,6 +76,11 @@ interface PaymentRequest {
   ReturnUrl: string
   IsDirectMembership: boolean
   IsEventTicket: boolean
+  IsExtend: boolean
+  MembershipId: string
+  Amount: number
+  PackageId: string
+  PackageType: string
 }
 
 export default function EventBookingHistory() {
@@ -116,7 +121,12 @@ export default function EventBookingHistory() {
         PaymentMethod: "VNPAY",
         ReturnUrl: "",
         IsDirectMembership: true,
-        IsEventTicket: true
+        IsEventTicket: true,
+        IsExtend: false,
+        MembershipId: "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+        Amount: 0,
+        PackageId: "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+        PackageType: ""
       }
 
       console.log('Payment Request:', paymentRequest)

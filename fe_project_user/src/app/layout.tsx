@@ -8,6 +8,8 @@ import { AuthProvider } from "@/components/auth-context"
 import I18nProvider from "@/components/I18nProvider" // Thêm dòng này
 import AutoRefreshToken from "@/components/AutoRefreshToken";
 import { AccountProvider } from "@/components/account/AccountContext";
+import { SessionExpiredProvider } from "@/context/SessionExpiredContext";
+import { SessionExpiredModal } from "@/components/SessionExpiredModal";
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -25,15 +27,18 @@ export default function RootLayout({
     <html lang="en">
       <body className={inter.className}>
         <AuthProvider>
-          <I18nProvider>
-            <AutoRefreshToken />
-            <AccountProvider initialData={null}>
-              <div className="min-h-screen bg-gradient-to-br from-[#e8f9fc] to-[#cce9fa]">
-                <Navigation />
-                {children}
-              </div>
-            </AccountProvider>
-          </I18nProvider>
+          <SessionExpiredProvider>
+            <I18nProvider>
+              <AutoRefreshToken />
+              <AccountProvider initialData={null}>
+                <div className="min-h-screen bg-gradient-to-br from-[#e8f9fc] to-[#cce9fa]">
+                  <Navigation />
+                  {children}
+                </div>
+                <SessionExpiredModal />
+              </AccountProvider>
+            </I18nProvider>
+          </SessionExpiredProvider>
         </AuthProvider>
       </body>
     </html>

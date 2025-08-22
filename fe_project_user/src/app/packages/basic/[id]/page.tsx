@@ -46,7 +46,9 @@ export default function BasicPackageDetailPage() {
       setLoading(true);
       try {
         const pkgRes = await api.get(`/api/membership/BasicPlans/${id}`);
-        setPkg(pkgRes.data || pkgRes);
+        const pkgData = pkgRes.data || pkgRes;
+
+        setPkg(pkgData);
       } catch (err) {
         setPkg(null);
       } finally {
@@ -59,18 +61,31 @@ export default function BasicPackageDetailPage() {
   if (loading) return <div className="min-h-screen flex items-center justify-center text-lg">Đang tải dữ liệu...</div>;
   if (!pkg) return <div className="min-h-screen flex items-center justify-center text-lg text-red-500">Không tìm thấy gói basic này.</div>;
 
-  // Phân biệt loại booking room dựa vào basicPlanType
-  if (pkg.basicPlanType === "Accommodation") {
+  // Phân biệt loại booking room dựa vào serviceType từ NextUService
+  // serviceType = 0: Booking (Accommodation, Workspace) -> BasicRoomPackageDetail
+  // serviceType = 1: Non-booking (Lifestyle Services, Workplace Activities) -> BasicLifeActivityPackageDetail
+  if (pkg.serviceType === 0) {
     return (
       <BasicRoomPackageDetail id={id} router={router} />
     );
   }
-  if (pkg.basicPlanType === "Life activities") {
+  if (pkg.serviceType === 1) {
     return (
       <BasicLifeActivityPackageDetail id={id} router={router} />
     );
   }
 
   // TODO: Render loại service ở đây sau này
-  return <div className="min-h-screen flex items-center justify-center text-lg text-yellow-500">Chưa hỗ trợ loại basic service.</div>;
+  return (
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="text-center">
+        <div className="text-lg text-yellow-500 mb-4">Chưa hỗ trợ loại basic service.</div>
+        <div className="text-sm text-gray-600">
+          <div>ServiceType: {pkg.serviceType} ({typeof pkg.serviceType})</div>
+          <div>NextUServiceName: {pkg.nextUServiceName}</div>
+          <div>Package ID: {id}</div>
+        </div>
+      </div>
+    </div>
+  );
 }   

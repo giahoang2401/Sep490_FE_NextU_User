@@ -343,8 +343,8 @@ export default function PackageSection({
           }
         });
       }
-      // Auto-fetch entitlement detail for LIFEACTIVITIES
-      if (pkg.basicPlanTypeCode === 'LIFEACTIVITIES' && pkg.entitlements && Array.isArray(pkg.entitlements)) {
+      // Auto-fetch entitlement detail for serviceType = 1 (Non-booking services)
+      if (pkg.serviceType === 1 && pkg.entitlements && Array.isArray(pkg.entitlements)) {
         pkg.entitlements.forEach((e: any) => {
           const entitlementId = e.entitlementId;
           if (entitlementId && !accommodationInfo[entitlementId] && !loadingAccommodation[entitlementId]) {
@@ -435,27 +435,19 @@ export default function PackageSection({
     <div className={`min-h-screen bg-gradient-to-br from-[#e8f9fc] via-[#f0fbfd] to-[#cce9fa] ${className}`}>
 
 
-      {/* Filter Section */}
+      {/* Compact Filter Section */}
       {(showLocationFilter || showTypeFilter) && (
-        <section className="py-6 px-4 sm:px-6 lg:px-8 bg-white/50">
-          <div className="max-w-4xl mx-auto">
-            {/* Location Filters */}
-            {showLocationFilter && (
-              <div className="bg-white rounded-lg p-5 shadow-sm border mb-4">
-                <div className="text-center mb-4">
-                  <h3 className="text-lg font-semibold text-slate-800 mb-1">Select Location</h3>
-                  <p className="text-sm text-slate-600">Choose city, location, and property</p>
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <section className="py-4 px-4 sm:px-6 lg:px-8">
+          <div className="max-w-6xl mx-auto">
+            <div className="flex flex-col lg:flex-row items-center justify-between gap-4 bg-white/80 backdrop-blur-sm rounded-xl p-4 shadow-sm border border-white/50">
+              
+              {/* Location Filters - Left Side */}
+              {showLocationFilter && (
+                <div className="flex flex-col sm:flex-row items-center gap-3 flex-1">
                   {/* City Select */}
-                  <div className="space-y-2">
-                    <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
-                      <MapPinIcon className="w-4 h-4 text-slate-500" />
-                      City
-                    </label>
+                  <div className="relative">
                     <select
-                      className="w-full px-3 py-2 rounded-md border border-slate-300 focus:ring-1 focus:ring-slate-400 focus:border-slate-400 focus:outline-none bg-white text-slate-800 text-sm"
+                      className="appearance-none bg-white rounded-lg px-4 py-2.5 pr-8 border border-slate-200 focus:ring-2 focus:ring-[#28c4dd]/20 focus:border-[#28c4dd] focus:outline-none text-slate-700 text-sm font-medium shadow-sm hover:shadow-md transition-all"
                       value={selectedCity}
                       onChange={e => {
                         setSelectedCity(e.target.value);
@@ -464,21 +456,20 @@ export default function PackageSection({
                       }}
                       disabled={cities.length === 0}
                     >
-                      <option value="">Select city</option>
+                      <option value="">Hà Nội</option>
                       {cities.map(city => (
                         <option key={city.id} value={city.id}>{city.name}</option>
                       ))}
                     </select>
+                    <MapPinIcon className="absolute right-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
                   </div>
 
+                  <div className="text-slate-300 hidden sm:block">→</div>
+
                   {/* Location Select */}
-                  <div className="space-y-2">
-                    <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
-                      <MapPin className="w-4 h-4 text-slate-500" />
-                      Location
-                    </label>
+                  <div className="relative">
                     <select
-                      className="w-full px-3 py-2 rounded-md border border-slate-300 focus:ring-1 focus:ring-slate-400 focus:border-slate-400 focus:outline-none bg-white text-slate-800 text-sm disabled:bg-slate-50 disabled:cursor-not-allowed"
+                      className="appearance-none bg-white rounded-lg px-4 py-2.5 pr-8 border border-slate-200 focus:ring-2 focus:ring-[#28c4dd]/20 focus:border-[#28c4dd] focus:outline-none text-slate-700 text-sm font-medium shadow-sm hover:shadow-md transition-all disabled:bg-slate-50 disabled:cursor-not-allowed"
                       value={selectedLocation}
                       onChange={e => {
                         setSelectedLocation(e.target.value);
@@ -486,75 +477,75 @@ export default function PackageSection({
                       }}
                       disabled={!selectedCity || locations.length === 0}
                     >
-                      <option value="">Select location</option>
+                      <option value="">Hoàng Cầu</option>
                       {locations.map(loc => (
                         <option key={loc.id} value={loc.id}>{loc.name}</option>
                       ))}
                     </select>
+                    <MapPin className="absolute right-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
                   </div>
 
+                  <div className="text-slate-300 hidden sm:block">→</div>
+
                   {/* Property Select */}
-                  <div className="space-y-2">
-                    <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
-                      <Building2 className="w-4 h-4 text-slate-500" />
-                      Property
-                    </label>
+                  <div className="relative">
                     <select
-                      className="w-full px-3 py-2 rounded-md border border-slate-300 focus:ring-1 focus:ring-slate-400 focus:border-slate-400 focus:outline-none bg-white text-slate-800 text-sm disabled:bg-slate-50 disabled:cursor-not-allowed"
+                      className="appearance-none bg-white rounded-lg px-4 py-2.5 pr-8 border border-slate-200 focus:ring-2 focus:ring-[#28c4dd]/20 focus:border-[#28c4dd] focus:outline-none text-slate-700 text-sm font-medium shadow-sm hover:shadow-md transition-all disabled:bg-slate-50 disabled:cursor-not-allowed"
                       value={selectedProperty}
                       onChange={e => setSelectedProperty(e.target.value)}
                       disabled={!selectedLocation || properties.length === 0}
                     >
-                      <option value="">Select property</option>
+                      <option value="">Hoàng Cầu Cơ sở 1</option>
                       {properties.map(prop => (
                         <option key={prop.id} value={prop.id}>{prop.name}</option>
                       ))}
                     </select>
+                    <Building2 className="absolute right-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
                   </div>
                 </div>
+              )}
 
-                {/* Selected Location Info */}
-                {selectedCity && selectedLocation && selectedProperty && (
-                  <div className="mt-4 text-center">
-                    <div className="inline-flex items-center gap-2 bg-slate-800 text-white px-4 py-2 rounded-md text-sm font-medium">
-                      <MapPin className="h-4 w-4" />
-                      <span>
-                        Showing packages for <strong>{properties.find(p => p.id === selectedProperty)?.name || ''}</strong>
-                      </span>
+              {/* Package Type Toggle - Right Side */}
+              {showTypeFilter && (
+                <div className="flex-shrink-0">
+                  <div className="bg-slate-800 rounded-lg p-1">
+                    <div className="flex">
+                      <button
+                        onClick={() => updateShowType('basic')}
+                        className={`px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 flex items-center gap-2 ${
+                          showType === 'basic'
+                            ? 'bg-[#28c4dd] text-white shadow-md'
+                            : 'text-slate-300 hover:text-white hover:bg-slate-700'
+                        }`}
+                      >
+                        <Building2 className="w-4 h-4" />
+                        Basic
+                      </button>
+                      <button
+                        onClick={() => updateShowType('combo')}
+                        className={`px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 flex items-center gap-2 ${
+                          showType === 'combo'
+                            ? 'bg-[#5661b3] text-white shadow-md'
+                            : 'text-slate-300 hover:text-white hover:bg-slate-700'
+                        }`}
+                      >
+                        <Sparkles className="w-4 h-4" />
+                        Combo
+                      </button>
                     </div>
                   </div>
-                )}
-              </div>
-            )}
+                </div>
+              )}
+            </div>
 
-            {/* Package Type Toggle - Moved below location filters */}
-            {showTypeFilter && (
-              <div className="flex justify-center">
-                <div className="bg-white rounded-lg p-1 shadow-sm border">
-                  <div className="flex">
-                    <button
-                      onClick={() => updateShowType('basic')}
-                      className={`px-6 py-2 rounded-md text-sm font-medium transition-colors ${
-                        showType === 'basic'
-                          ? 'bg-slate-800 text-white'
-                          : 'text-slate-600 hover:text-slate-800 hover:bg-slate-100'
-                      }`}
-                    >
-                      <Building2 className="inline-block w-4 h-4 mr-2" />
-                      Basic
-                    </button>
-                    <button
-                      onClick={() => updateShowType('combo')}
-                      className={`px-6 py-2 rounded-md text-sm font-medium transition-colors ${
-                        showType === 'combo'
-                          ? 'bg-slate-800 text-white'
-                          : 'text-slate-600 hover:text-slate-800 hover:bg-slate-100'
-                      }`}
-                    >
-                      <Sparkles className="inline-block w-4 h-4 mr-2" />
-                      Combo
-                    </button>
-                  </div>
+            {/* Selected Location Info */}
+            {selectedCity && selectedLocation && selectedProperty && (
+              <div className="mt-3 text-center">
+                <div className="inline-flex items-center gap-2 bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-medium">
+                  <MapPin className="h-4 w-4" />
+                  <span>
+                    Showing packages for <strong>{properties.find(p => p.id === selectedProperty)?.name || ''}</strong>
+                  </span>
                 </div>
               </div>
             )}
@@ -563,17 +554,17 @@ export default function PackageSection({
       )}
 
       {/* Packages Section */}
-      <section className="py-8 px-4 sm:px-6 lg:px-8">
+      <section className="px-4 sm:px-6 lg:px-8 pb-8">
         <div className="max-w-6xl mx-auto">
           {/* Show packages if selectedProperty is set OR if we have default data */}
           {(selectedProperty || (cities.length > 0 && locations.length > 0 && properties.length > 0)) ? (
             <>
               {/* Section Header */}
-              <div className="text-center mb-8">
-                <h2 className="text-2xl font-bold text-slate-800 mb-2">
+              <div className="text-center mb-6">
+                <h2 className="text-xl font-bold text-slate-800 mb-1">
                   {showType === 'basic' ? 'Basic Packages' : 'Combo Packages'}
                 </h2>
-                <p className="text-slate-600 max-w-xl mx-auto text-sm">
+                <p className="text-slate-600 max-w-lg mx-auto text-sm">
                   {showType === 'basic' 
                     ? 'Choose from our carefully curated basic packages designed for your specific needs'
                     : 'Discover our value-packed combo deals that combine multiple services at discounted rates'
@@ -618,7 +609,7 @@ export default function PackageSection({
                             <div className="relative z-10 p-6 text-center h-full flex flex-col justify-center">
                               <div className="mb-3">
                                 <Badge className="bg-white/80 text-slate-700 border-0 px-3 py-1 text-xs font-medium">
-                                  {pkg.basicPlanTypeCode || 'Basic Package'}
+                                  {pkg.nextUServiceName || 'Basic Package'}
                                 </Badge>
                               </div>
                               <CardTitle className="text-xl font-bold text-slate-800 mb-3 leading-tight">{pkg.name}</CardTitle>
@@ -746,7 +737,7 @@ export default function PackageSection({
                                    );
                                  })}
                                </div>
-                             ) : pkg.basicPlanTypeCode === 'LIFEACTIVITIES' && pkg.entitlements && pkg.entitlements.length > 0 ? (
+                             ) : pkg.serviceType === 1 && pkg.entitlements && pkg.entitlements.length > 0 ? (
                                <div className="space-y-2">
                                  {pkg.entitlements.map((e: any, i: number) => {
                                    const entitlementId = e.entitlementId;
@@ -997,7 +988,7 @@ export default function PackageSection({
                                   pkg.basicPlanIds.forEach((planId: string) => {
                                     const planDetail = basicPlanDetails[planId];
                                     if (planDetail) {
-                                      const type = planDetail.basicPlanType || planDetail.basicPlanTypeCode || 'Other';
+                                      const type = planDetail.nextUServiceName || 'Other';
                                       if (!plansByType[type]) {
                                         plansByType[type] = [];
                                       }

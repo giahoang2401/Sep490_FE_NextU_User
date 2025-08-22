@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
-import { Package, MapPin, Clock, CheckCircle, CreditCard, XCircle, User, Calendar, DollarSign, FileText, Home, X } from "lucide-react"
+import { Package, MapPin, Clock, CheckCircle, CreditCard, XCircle, User, Calendar, DollarSign, FileText, Home, X, Loader2, Plus } from "lucide-react"
 import { PaymentModal } from "@/components/payment-modal"
 import api from '@/utils/axiosConfig'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
@@ -86,6 +86,11 @@ export default function PackageList() {
   const [canceling, setCanceling] = useState(false)
   const [cancelSuccess, setCancelSuccess] = useState(false)
   const [cancelRequestId, setCancelRequestId] = useState<string | null>(null)
+  
+  // Renewal state
+  const [showRenewalDialog, setShowRenewalDialog] = useState(false)
+  const [selectedRenewalRequest, setSelectedRenewalRequest] = useState<PackageHistory | null>(null)
+  const [processingRenewal, setProcessingRenewal] = useState<string | null>(null)
 
   useEffect(() => {
     async function fetchHistory() {
@@ -162,7 +167,13 @@ export default function PackageList() {
         RequestId: request.requestId,
         PaymentMethod: 'VNPAY',
         ReturnUrl: '',
-        IsDirectMembership: false
+        IsDirectMembership: false,
+        IsEventTicket: false,
+        IsExtend: false,
+        MembershipId: "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+        Amount: 0,
+        PackageId: "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+        PackageType: ""
       });
       const redirectUrl = res.data?.Data?.redirectUrl;
       if (redirectUrl) {
@@ -238,6 +249,49 @@ export default function PackageList() {
       setCanceling(false)
       setShowCancelDialog(false)
       setCancelRequestId(null)
+    }
+  }
+
+  const handleRenewalClick = (request: PackageHistory) => {
+    setSelectedRenewalRequest(request)
+    setShowRenewalDialog(true)
+  }
+
+
+
+  const confirmRenewal = async () => {
+    if (!selectedRenewalRequest) return
+    
+    try {
+      setProcessingRenewal(selectedRenewalRequest.requestId)
+      
+      const renewalRequest = {
+        paymentMethod: "VNPAY",
+        redirectUrl: ""
+      }
+
+      const response = await api.post(`/api/user/memberships/${selectedRenewalRequest.requestId}/extend-init`, renewalRequest)
+      
+      if (response.status === 200 || response.status === 201) {
+        const responseData = response.data
+        
+        if (responseData.paymentUrl?.redirectUrl) {
+          alert('Redirecting to payment gateway for renewal...')
+          
+          // Redirect to VNPAY payment gateway
+          window.location.href = responseData.paymentUrl.redirectUrl
+        } else {
+          alert('Renewal initialization failed. Please try again.')
+        }
+      }
+    } catch (error: any) {
+      console.error('Renewal error:', error)
+      const errorMessage = error.response?.data?.message || 'Failed to initiate renewal. Please try again.'
+      alert(errorMessage)
+    } finally {
+      setProcessingRenewal(null)
+      setShowRenewalDialog(false)
+      setSelectedRenewalRequest(null)
     }
   }
 
@@ -409,6 +463,20 @@ export default function PackageList() {
                   >
                     <CreditCard className="h-4 w-4 mr-2" />
                     Pay Now
+                  </Button>
+                )}
+                {request.status?.toLowerCase() === 'completed' && (
+                  <Button 
+                    className="bg-green-600 hover:bg-green-700"
+                    onClick={e => { e.stopPropagation(); handleRenewalClick(request); }}
+                    disabled={processingRenewal === request.requestId}
+                  >
+                    {processingRenewal === request.requestId ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Plus className="h-4 w-4 mr-2" />
+                    )}
+                    {processingRenewal === request.requestId ? 'Processing...' : 'Renew'}
                   </Button>
                 )}
                 <Button variant="outline" onClick={e => { e.stopPropagation(); handleShowDetail(request); }}>
@@ -783,6 +851,69 @@ export default function PackageList() {
           </ConfirmDialogHeader>
           <div className="flex justify-end mt-4">
             <Button onClick={() => setCancelSuccess(false)}>OK</Button>
+          </div>
+        </ConfirmDialogContent>
+      </ConfirmDialog>
+
+      {/* Renewal Confirmation Dialog */}
+      <ConfirmDialog open={showRenewalDialog} onOpenChange={setShowRenewalDialog}>
+        <ConfirmDialogContent className="max-w-md">
+          <ConfirmDialogHeader>
+            <ConfirmDialogTitle className="flex items-center gap-2">
+              <Plus className="h-5 w-5 text-green-600" />
+              Renew Membership
+            </ConfirmDialogTitle>
+            <ConfirmDialogDescription>
+              Are you sure you want to renew this membership?
+            </ConfirmDialogDescription>
+          </ConfirmDialogHeader>
+          
+          {selectedRenewalRequest && (
+            <div className="bg-slate-50 p-4 rounded-lg mb-4">
+              <h4 className="font-semibold text-slate-800 mb-3">{selectedRenewalRequest.requestedPackageName}</h4>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Package Type:</span>
+                  <span className="font-medium">{selectedRenewalRequest.packageType?.toUpperCase()}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Current Price:</span>
+                  <span className="font-semibold text-blue-600">₫{selectedRenewalRequest.finalPrice?.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Location:</span>
+                  <span className="font-medium">{selectedRenewalRequest.locationName}</span>
+                </div>
+
+              </div>
+            </div>
+          )}
+
+          <div className="flex justify-end gap-2 mt-4">
+            <Button 
+              variant="outline" 
+              onClick={() => setShowRenewalDialog(false)}
+              disabled={processingRenewal !== null}
+            >
+              No, Cancel
+            </Button>
+            <Button 
+              className="bg-green-600 hover:bg-green-700"
+              onClick={confirmRenewal}
+              disabled={processingRenewal !== null}
+            >
+              {processingRenewal ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                <>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Yes, Renew
+                </>
+              )}
+            </Button>
           </div>
         </ConfirmDialogContent>
       </ConfirmDialog>

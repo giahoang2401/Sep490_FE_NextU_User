@@ -43,58 +43,80 @@ export default function ComboPackageDetail({ id, router }: { id: string, router:
     async function fetchData() {
       setLoading(true);
       try {
+        // Fetch combo info và basic packages trước
+        console.log('[DEBUG] Fetching combo info...');
         const comboRes = await api.get(`/api/membership/ComboPlans/${id}`);
         const comboData = comboRes.data || comboRes;
+        console.log('[DEBUG] Combo info fetched successfully:', comboData);
         setCombo(comboData);
+
         // Fetch all basic package details
         let basics: any[] = [];
         if (comboData.basicPlanIds && comboData.basicPlanIds.length > 0) {
+          console.log('[DEBUG] Fetching basic package details...');
           basics = await Promise.all(
             comboData.basicPlanIds.map(async (bid: string) => {
               try {
                 const res = await api.get(`/api/membership/BasicPlans/${bid}`);
                 return res.data || res;
               } catch {
+                console.error(`[ERROR] Failed to fetch basic plan ${bid}`);
                 return null;
               }
             })
           );
           setBasicDetails(basics.filter(Boolean));
+          console.log('[DEBUG] Basic package details fetched:', basics.filter(Boolean));
         } else {
           setBasicDetails([]);
         }
-        // Fetch rooms & durations for each accommodation basic
-        const accommodationBasics = basics.filter(b => b && (b.basicPlanType === 'Accommodation' || b.basicPlanTypeCode === 'ACCOMMODATION') && Array.isArray(b.acomodations) && b.acomodations.length > 0);
-        const roomsMap: { [basicId: string]: any[] } = {};
-        const durationMap: { [basicId: string]: any } = {};
-        await Promise.all(accommodationBasics.map(async (b: any) => {
-          const acc = b.acomodations && b.acomodations[0];
-          if (acc && acc.accomodationId) {
-            try {
-              const res = await api.get(`/api/membership/RoomInstances/by-option/${acc.accomodationId}`);
-              const roomsData = res.data || [];
-              
-              // Fetch addOnFee for each room - room already has this info from the API
-              const roomsWithAddOn = roomsData.map((room: any) => ({
-                ...room,
-                addOnFee: room.addOnFee || 0
-              }));
-              
-              roomsMap[b.id] = roomsWithAddOn;
-            } catch {
+
+        // Fetch rooms separately - nếu lỗi thì không ảnh hưởng combo và basic info
+        try {
+          console.log('[DEBUG] Fetching rooms for accommodation basics...');
+          // Fetch rooms & durations for each accommodation basic (serviceType = 0)
+          const accommodationBasics = basics.filter(b => b && b.serviceType === 0 && Array.isArray(b.acomodations) && b.acomodations.length > 0);
+          const roomsMap: { [basicId: string]: any[] } = {};
+          const durationMap: { [basicId: string]: any } = {};
+          
+          await Promise.all(accommodationBasics.map(async (b: any) => {
+            const acc = b.acomodations && b.acomodations[0];
+            if (acc && acc.accomodationId) {
+              try {
+                const res = await api.get(`/api/membership/RoomInstances/by-option/${acc.accomodationId}`);
+                const roomsData = res.data || [];
+                
+                // Fetch addOnFee for each room - room already has this info from the API
+                const roomsWithAddOn = roomsData.map((room: any) => ({
+                  ...room,
+                  addOnFee: room.addOnFee || 0
+                }));
+                
+                roomsMap[b.id] = roomsWithAddOn;
+                console.log(`[DEBUG] Rooms fetched for basic ${b.id}:`, roomsWithAddOn);
+              } catch (roomErr) {
+                console.error(`[ERROR] Failed to fetch rooms for basic ${b.id}:`, roomErr);
+                roomsMap[b.id] = [];
+              }
+            } else {
               roomsMap[b.id] = [];
             }
-          } else {
-            roomsMap[b.id] = [];
-          }
-          // Lấy duration mặc định
-          if (b.planDurations && b.planDurations.length > 0) {
-            durationMap[b.id] = b.planDurations[0];
-          }
-        }));
-        setBasicRooms(roomsMap);
-        setDuration(durationMap);
+            // Lấy duration mặc định
+            if (b.planDurations && b.planDurations.length > 0) {
+              durationMap[b.id] = b.planDurations[0];
+            }
+          }));
+          
+          setBasicRooms(roomsMap);
+          setDuration(durationMap);
+        } catch (roomsErr) {
+          console.error('[ERROR] Failed to fetch rooms (but combo info is OK):', roomsErr);
+          setBasicRooms({});
+          setDuration({});
+        }
+
       } catch (err) {
+        console.error('[ERROR] Failed to fetch combo info:', err);
         setCombo(null);
         setBasicDetails([]);
         setBasicRooms({});
@@ -110,30 +132,66 @@ export default function ComboPackageDetail({ id, router }: { id: string, router:
   const checkAllRoomsAvailability = async (basicId: string, from?: string, to?: string) => {
     const rooms = basicRooms[basicId] || [];
     if (!rooms || rooms.length === 0) return;
+    
+    console.log('[DEBUG] checkAllRoomsAvailability called for basicId:', basicId, { from, to, roomsCount: rooms.length });
+    
     const results: any = {};
     await Promise.all(
       rooms.map(async (room: any) => {
         try {
-          const params: any = {};
-          if (from) params.from = from;
-          if (to) params.to = to;
-          const res = await api.get(`/api/membership/Bookings/room/${room.id}`, { params });
-          if (Array.isArray(res.data) && res.data.length > 0) {
+          const params: any = { roomId: room.id };
+          
+          // Convert date format from yyyy-MM-dd to MM/dd/yyyy
+          if (from) {
+            // Parse date string directly to avoid timezone issues
+            const [year, month, day] = from.split('-');
+            params.startDate = `${month}/${day}/${year}`;
+          }
+          if (to) {
+            // Parse date string directly to avoid timezone issues
+            const [year, month, day] = to.split('-');
+            params.endDate = `${month}/${day}/${year}`;
+          }
+          
+          console.log(`Checking room ${room.id} with params:`, params);
+          
+          const res = await api.get(`/api/membership/Bookings/availability`, { params });
+          const data = res.data || res;
+          
+          if (data.available) {
             results[room.id] = {
-              viewedBookingStatus: res.data[0].viewedBookingStatus,
+              viewedBookingStatus: data.message || 'Available',
               from: from || '',
               to: to || '',
-              startDate: from ? res.data[0].startDate : null,
-              endDate: from ? res.data[0].endDate : null,
+              available: true,
+              message: data.message || 'Available',
             };
           } else {
-            results[room.id] = { viewedBookingStatus: 'unknown', from: from || '', to: to || '', startDate: null, endDate: null };
+            results[room.id] = {
+              viewedBookingStatus: data.message || 'Not available',
+              from: from || '',
+              to: to || '',
+              available: false,
+              message: data.message || 'Not available',
+              availableFrom: data.availableFrom,
+              blockingBookingId: data.blockingBookingId,
+              blockingStatus: data.blockingStatus,
+            };
           }
         } catch (error) {
-          results[room.id] = { viewedBookingStatus: 'unknown', from: from || '', to: to || '', startDate: null, endDate: null };
+          console.error(`Error checking room ${room.id}:`, error);
+          results[room.id] = { 
+            viewedBookingStatus: 'unknown', 
+            from: from || '', 
+            to: to || '', 
+            available: false,
+            message: 'Error checking availability'
+          };
         }
       })
     );
+    
+    console.log('Availability results for basicId:', basicId, results);
     setRoomAvailability(prev => ({ ...prev, [basicId]: results }));
   };
 
@@ -210,12 +268,12 @@ export default function ComboPackageDetail({ id, router }: { id: string, router:
     // eslint-disable-next-line
   }, [basicDetails.length]);
 
-  // Sắp xếp basicDetails: Life Activities trước, Accommodation sau
+  // Sắp xếp basicDetails: Non-booking (serviceType=1) trước, Booking (serviceType=0) sau
   const sortedBasics = [
-    ...basicDetails.filter(b => b.basicPlanType === 'Life Activity' || b.basicPlanTypeCode === 'LIFEACTIVITIES'),
-    ...basicDetails.filter(b => b.basicPlanType === 'Accommodation' || b.basicPlanTypeCode === 'ACCOMMODATION')
+    ...basicDetails.filter(b => b.serviceType === 1), // Non-booking services (Lifestyle Services, Workplace Activities)
+    ...basicDetails.filter(b => b.serviceType === 0)  // Booking services (Accommodation, Workspace)
   ];
-  const accommodationBasic = sortedBasics.find(b => (b.basicPlanType === 'Accommodation' || b.basicPlanTypeCode === 'ACCOMMODATION') && basicRooms[b.id] && basicRooms[b.id].length > 0);
+  const accommodationBasic = sortedBasics.find(b => b.serviceType === 0 && basicRooms[b.id] && basicRooms[b.id].length > 0);
   const accommodationBasicId = accommodationBasic?.id;
   const accommodationRooms = accommodationBasic ? basicRooms[accommodationBasic.id] : [];
   const accommodationSelectedDates = accommodationBasic ? selectedDates[accommodationBasic.id] : undefined;
@@ -225,11 +283,11 @@ export default function ComboPackageDetail({ id, router }: { id: string, router:
 
   // Calculate total price using API totalPrice
   const calculateTotalPrice = () => {
-    // 1. Tổng giá các package Life Activity
-    const lifeActivityPackages = sortedBasics.filter(b => b.basicPlanType === 'Life Activity' || b.basicPlanTypeCode === 'LIFEACTIVITIES');
-    const lifeActivityTotal = lifeActivityPackages.reduce((sum, pkg) => sum + (pkg.price || 0), 0);
+    // 1. Tổng giá các package Non-booking (serviceType = 1)
+    const nonBookingPackages = sortedBasics.filter(b => b.serviceType === 1);
+    const nonBookingTotal = nonBookingPackages.reduce((sum, pkg) => sum + (pkg.price || 0), 0);
     
-    // 2. Giá package Accommodation
+    // 2. Giá package Booking (serviceType = 0)
     const accommodationTotal = accommodationBasic ? (accommodationBasic.price || 0) : 0;
     
     // 3. Addon * duration (1 month = 30 days)
@@ -254,18 +312,48 @@ export default function ComboPackageDetail({ id, router }: { id: string, router:
       }
     }
     
-    // Sử dụng totalPrice từ API thay vì tính toán lại
-    const apiTotalPrice = combo?.totalPrice || 0;
-    const finalPrice = apiTotalPrice + addonCost; // Chỉ cộng thêm addon cost
+    // Tính toán giá gốc (trước discount)
+    const originalPrice = nonBookingTotal + accommodationTotal + addonCost;
+    
+    // Tính discount amount
+    const discountRate = combo?.discountRate || 0;
+    const discountAmount = originalPrice * discountRate;
+    
+    // Giá cuối sau khi áp dụng discount
+    const finalPrice = originalPrice - discountAmount;
     
     return {
-      lifeActivityTotal,
+      nonBookingTotal,
       accommodationTotal,
       addonCost,
-      subtotal: apiTotalPrice,
-      discountAmount: 0, // Không tính discount vì API đã bao gồm
+      subtotal: originalPrice,
+      discountAmount,
       finalPrice
     };
+  };
+
+  // Calculate room price with addon for display (even when room not selected)
+  const calculateRoomPriceWithAddon = (room: any) => {
+    if (!room || !accommodationDuration || !accommodationSelectedDates?.moveIn || !accommodationSelectedDates?.moveOut) {
+      return accommodationBasic ? accommodationBasic.price || 0 : 0;
+    }
+    
+    const durationValue = parseInt(accommodationDuration.planDurationValue) || 1;
+    const durationUnit = accommodationDuration.planDurationUnit || 'Month';
+    
+    let durationInDays = 0;
+    if (durationUnit === 'Month') {
+      durationInDays = durationValue * 30; // 1 month = 30 days
+    } else if (durationUnit === 'Year') {
+      durationInDays = durationValue * 365;
+    } else if (durationUnit === 'Day') {
+      durationInDays = durationValue;
+    }
+    
+    const basePrice = accommodationBasic ? accommodationBasic.price || 0 : 0;
+    const addonCost = (room.addOnFee || 0) * durationInDays;
+    
+    return basePrice + addonCost;
   };
 
   const priceBreakdown = calculateTotalPrice();
@@ -328,7 +416,7 @@ export default function ComboPackageDetail({ id, router }: { id: string, router:
         redirectUrl: window.location.origin + "/profile",
         // Thêm thông tin giá tính toán
         priceBreakdown: {
-          lifeActivityTotal: priceBreakdown.lifeActivityTotal,
+          nonBookingTotal: priceBreakdown.nonBookingTotal,
           accommodationTotal: priceBreakdown.accommodationTotal,
           addonCost: priceBreakdown.addonCost,
           subtotal: priceBreakdown.subtotal,
@@ -468,15 +556,15 @@ export default function ComboPackageDetail({ id, router }: { id: string, router:
             <hr className="w-12 border-slate-300 mb-6" />
             
             <div className="space-y-6">
-              {/* Life Activities first */}
-              {sortedBasics.filter(b => b.basicPlanType === 'Life Activity' || b.basicPlanTypeCode === 'LIFEACTIVITIES').map((basic, idx) => (
+              {/* Non-booking services first (serviceType = 1) */}
+              {sortedBasics.filter(b => b.serviceType === 1).map((basic, idx) => (
                 <Card key={basic.id || idx} className="border border-slate-200 rounded-xl shadow-sm">
                   <CardContent className="p-6">
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-2">
                           <Zap className="h-5 w-5 text-green-500" />
-                          <span className="text-sm font-medium text-green-600 bg-green-50 px-2 py-1 rounded-full">Life Activity</span>
+                          <span className="text-sm font-medium text-green-600 bg-green-50 px-2 py-1 rounded-full">{basic.nextUServiceName || 'Service'}</span>
                         </div>
                         <div className="font-bold text-lg text-slate-800 mb-1">{basic.name}</div>
                         <div className="text-slate-600 mb-2">{basic.description}</div>
@@ -502,15 +590,15 @@ export default function ComboPackageDetail({ id, router }: { id: string, router:
                 </Card>
               ))}
 
-              {/* Accommodation packages */}
-              {sortedBasics.filter(b => b.basicPlanType === 'Accommodation' || b.basicPlanTypeCode === 'ACCOMMODATION').map((basic, idx) => (
+              {/* Booking services (serviceType = 0) */}
+              {sortedBasics.filter(b => b.serviceType === 0).map((basic, idx) => (
                 <Card key={basic.id || idx} className="border border-slate-200 rounded-xl shadow-sm">
                   <CardContent className="p-6">
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-2">
                           <Bed className="h-5 w-5 text-blue-500" />
-                          <span className="text-sm font-medium text-blue-600 bg-blue-50 px-2 py-1 rounded-full">Accommodation</span>
+                          <span className="text-sm font-medium text-blue-600 bg-blue-50 px-2 py-1 rounded-full">{basic.nextUServiceName || 'Booking Service'}</span>
                         </div>
                         <div className="font-bold text-lg text-slate-800 mb-1">{basic.name}</div>
                         <div className="text-slate-600 mb-2">{basic.description}</div>
@@ -571,8 +659,7 @@ export default function ComboPackageDetail({ id, router }: { id: string, router:
                     const isSelected = selectedRoom && selectedRoom.id === room.id;
                     const availability = accommodationRoomAvailability[room.id] || {};
                     const status = availability.viewedBookingStatus || '';
-                    const isAvailable = status === 'available';
-                    const availableFrom = status.startsWith('available from') ? status : '';
+                    const isAvailable = availability.available === true;
                     return (
                       <Card key={room.id} className={`border rounded-2xl shadow bg-white/80 ${isSelected ? 'ring-2 ring-blue-500' : ''}`}>
                         <CardContent className="p-6 flex flex-col md:flex-row gap-6 items-center">
@@ -586,19 +673,19 @@ export default function ComboPackageDetail({ id, router }: { id: string, router:
                             )}
                             {/* Trạng thái phòng */}
                             <div className="mt-2 text-sm">
-                              {isAvailable && <span className="text-green-600 font-semibold">Available</span>}
-                              {availableFrom && <span className="text-orange-600 font-semibold">{status}</span>}
-                              {!isAvailable && !availableFrom && status && <span className="text-gray-500">{status}</span>}
+                              {isAvailable && <span className="text-green-600 font-semibold">{status}</span>}
+                              {!isAvailable && status && <span className="text-orange-600 font-semibold">{status}</span>}
                             </div>
                           </div>
                           <div className="flex flex-col gap-2 items-center">
-                            <div className="text-xl font-bold text-blue-700 mb-2">₫{(priceBreakdown.accommodationTotal + priceBreakdown.addonCost).toLocaleString()}</div>
+                            <div className="text-xl font-bold text-blue-700 mb-2">₫{calculateRoomPriceWithAddon(room).toLocaleString()}</div>
                             <Button
                               className="rounded-full px-6 py-2 bg-gradient-to-r from-blue-500 to-teal-500 text-white font-semibold shadow hover:shadow-lg transition"
                               onClick={() => {
                                 if (isSelected && hoveredRoomId === room.id) {
                                   setSelectedRoom(null);
                                 } else {
+                                  setSelectedRoom(null);
                                   setSelectedRoom(room);
                                 }
                               }}
@@ -708,40 +795,48 @@ export default function ComboPackageDetail({ id, router }: { id: string, router:
                   <div className="mt-6 pt-6 border-t border-slate-200">
                     {/* Price breakdown với tên từng package */}
                     <div className="space-y-2 mb-4">
-                      {/* Life Activity packages */}
-                      {sortedBasics.filter(b => b.basicPlanType === 'Life Activity' || b.basicPlanTypeCode === 'LIFEACTIVITIES').map((basic, idx) => (
+                      {/* Non-booking packages */}
+                      {sortedBasics.filter(b => b.serviceType === 1).map((basic, idx) => (
                         <div key={basic.id || idx} className="flex justify-between items-center text-sm text-slate-600">
                           <span>{basic.name}</span>
                           <span>₫{basic.price?.toLocaleString()}</span>
                         </div>
                       ))}
                       
-                      {/* Accommodation package với tên phòng nếu đã chọn */}
-                      {accommodationBasic && (
-                        <div className="flex justify-between items-center text-sm text-slate-600">
-                          <span>
-                            {selectedRoom ? selectedRoom.roomName || selectedRoom.roomTypeName : accommodationBasic.name}
-                            {selectedRoom && priceBreakdown.addonCost > 0 && (
-                              <span className="text-xs text-slate-400 block">
-                                (₫{priceBreakdown.accommodationTotal?.toLocaleString()} + ₫{priceBreakdown.addonCost?.toLocaleString()} addon)
-                              </span>
-                            )}
-                          </span>
-                          <span>₫{(priceBreakdown.accommodationTotal + priceBreakdown.addonCost).toLocaleString()}</span>
-                        </div>
-                      )}
+                                             {/* Booking package với tên phòng nếu đã chọn */}
+                       {accommodationBasic && (
+                         <div className="flex justify-between items-center text-sm text-slate-600">
+                           <span>
+                             {selectedRoom ? selectedRoom.roomName || selectedRoom.roomTypeName : accommodationBasic.name}
+                             {selectedRoom && priceBreakdown.addonCost > 0 && (
+                               <span className="text-xs text-slate-400 block">
+                                 (₫{priceBreakdown.accommodationTotal?.toLocaleString()} + ₫{priceBreakdown.addonCost?.toLocaleString()} addon)
+                               </span>
+                             )}
+                           </span>
+                           <span>₫{selectedRoom ? calculateRoomPriceWithAddon(selectedRoom).toLocaleString() : (priceBreakdown.accommodationTotal + priceBreakdown.addonCost).toLocaleString()}</span>
+                         </div>
+                       )}
                       
-                      {priceBreakdown.addonCost > 0 && (
-                        <div className="flex justify-between items-center text-sm text-slate-600">
-                          <span>Subtotal (from API)</span>
-                          <span>₫{priceBreakdown.subtotal?.toLocaleString()}</span>
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex justify-between items-center font-semibold text-slate-800 pt-2 border-t border-slate-200">
-                      <span>Total</span>
-                      <span>₫{priceBreakdown.finalPrice?.toLocaleString()}</span>
-                    </div>
+                                             {priceBreakdown.addonCost > 0 && (
+                         <div className="flex justify-between items-center text-sm text-slate-600">
+                           <span>Subtotal (from API)</span>
+                           <span>₫{priceBreakdown.subtotal?.toLocaleString()}</span>
+                         </div>
+                       )}
+                       
+                       {/* Hiển thị discount nếu có */}
+                       {priceBreakdown.discountAmount > 0 && (
+                         <div className="flex justify-between items-center text-sm text-green-600">
+                           <span>Discount ({(combo.discountRate * 100).toFixed(0)}% off)</span>
+                           <span>-₫{priceBreakdown.discountAmount.toLocaleString()}</span>
+                         </div>
+                       )}
+                     </div>
+                     <div className="flex justify-between items-center font-semibold text-slate-800 pt-2 border-t border-slate-200">
+                       <span>Total</span>
+                       <span>₫{priceBreakdown.finalPrice?.toLocaleString()}</span>
+                     </div>
                     <button
                       className="mt-6 w-full rounded-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 text-lg transition disabled:opacity-60 disabled:cursor-not-allowed"
                       onClick={handlePayNow}

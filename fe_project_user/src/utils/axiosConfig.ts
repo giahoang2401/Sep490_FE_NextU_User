@@ -1,6 +1,8 @@
 import { getAccessToken } from '@/utils/auth'
 import Axios, { AxiosError, AxiosInstance, AxiosResponse } from 'axios'
 import { Notify, Report } from 'notiflix'
+import { refreshAccessToken } from '@/utils/refreshAccessToken'
+import { triggerSessionExpired } from '@/context/SessionExpiredContext'
 
 export function setupAxios(axios: AxiosInstance) {
   axios.defaults.headers.Accept = 'application/json'
@@ -23,7 +25,41 @@ export function setupAxios(axios: AxiosInstance) {
       }
       return Promise.resolve(response)
     },
-    function (error: AxiosError<any>) {
+    async function (error: AxiosError<any>) {
+      const originalRequest: any = error.config;
+
+      // THÊM MỚI: Auto refresh logic  
+      if (error.response?.status === 401 && !originalRequest._retry) {
+        // Tránh vòng lặp: không refresh nếu đây là request refresh token
+        if (originalRequest.url?.includes('/api/auth/connect/token')) {
+          console.log('🚫 Refresh token API failed, not retrying to avoid infinite loop');
+          return Promise.reject(error);
+        }
+        
+        originalRequest._retry = true;
+        
+        const currentToken = localStorage.getItem('access_token');
+        if (!currentToken) {
+          console.log('💥 No access token found, showing session expired modal...');
+          triggerSessionExpired();
+          return Promise.reject(error);
+        }
+        
+        // Thử refresh token
+        console.log('🔄 401 detected, trying to refresh token...');
+        const newAccessToken = await refreshAccessToken();
+        if (newAccessToken) {
+          console.log('✅ Token refreshed, retrying request...');
+          originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+          return axios(originalRequest);
+        } else {
+          console.log('💥 Refresh failed, showing session expired modal...');
+          triggerSessionExpired();
+          return Promise.reject(error);
+        }
+      }
+
+      // GIỮ NGUYÊN LOGIC CŨ
       if (error.response && error.response.data) {
         const resData = error.response.data
 
