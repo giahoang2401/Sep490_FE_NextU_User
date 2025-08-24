@@ -33,6 +33,9 @@ interface PackageHistory {
   discountRate?: number;
   discountAmount?: number;
   roomInstanceId?: string;
+  addOnsFee?: number;
+  messageToStaff?: string;
+  requireBooking?: boolean;
 }
 
 interface BasicPlanDetail {
@@ -66,6 +69,18 @@ interface RoomDetail {
   }>;
 }
 
+interface EntitlementRule {
+  id: string;
+  entittlementRuleName: string;
+  nextUServiceId: string;
+  nextUServiceName: string;
+  price: number;
+  creditAmount: number;
+  period: number;
+  limitPerPeriod: number;
+  note: string;
+}
+
 export default function PackageList() {
   const [packageRequests, setPackageRequests] = useState<PackageHistory[]>([])
   const [showPaymentModal, setShowPaymentModal] = useState(false)
@@ -77,6 +92,7 @@ export default function PackageList() {
   const [selectedRequest, setSelectedRequest] = useState<PackageHistory | null>(null)
   const [basicPlanDetail, setBasicPlanDetail] = useState<BasicPlanDetail | null>(null)
   const [roomDetail, setRoomDetail] = useState<RoomDetail | null>(null)
+  const [entitlementDetails, setEntitlementDetails] = useState<EntitlementRule[]>([])
   
   const [tab, setTab] = useState('all')
   const [detailLoading, setDetailLoading] = useState(false)
@@ -195,16 +211,33 @@ export default function PackageList() {
     setDetailLoading(true)
     setBasicPlanDetail(null)
     setRoomDetail(null)
+    setEntitlementDetails([])
     
     try {
       // Fetch package details
       if (request.packageId) {
         const packageRes = await api.get(`/api/membership/BasicPlans/${request.packageId}`)
         setBasicPlanDetail(packageRes.data)
+        
+        // Fetch entitlement details if basic plan has entitlements
+        if (packageRes.data?.entitlements && packageRes.data.entitlements.length > 0) {
+          const entitlementPromises = packageRes.data.entitlements.map(async (entitlement: any) => {
+            try {
+              const entitlementRes = await api.get(`/api/EntitlementRule/${entitlement.entitlementId}`)
+              return entitlementRes.data
+            } catch (e) {
+              console.error('Error fetching entitlement:', e)
+              return null
+            }
+          })
+          
+          const entitlements = await Promise.all(entitlementPromises)
+          setEntitlementDetails(entitlements.filter(Boolean))
+        }
       }
       
-      // Fetch room details
-      if (request.roomInstanceId) {
+      // Fetch room details if requireBooking is true
+      if (request.requireBooking && request.roomInstanceId) {
         const roomRes = await api.get(`/api/membership/RoomInstances/${request.roomInstanceId}`)
         setRoomDetail(roomRes.data)
       }
@@ -453,7 +486,7 @@ export default function PackageList() {
               <CardFooter className="flex justify-end gap-2 pt-0 mt-auto">
                 {(request.status?.toLowerCase() === 'pending' || request.status?.toLowerCase() === 'pendingpayment') && (
                   <Button variant="destructive" onClick={e => { e.stopPropagation(); handleCancelRequest(request.requestId); }}>
-                    Cancel Request
+                    Cancel
                   </Button>
                 )}
                 {request.status?.toLowerCase() === 'pendingpayment' && (
@@ -544,6 +577,12 @@ export default function PackageList() {
                     <span className="text-slate-500">Original:</span>
                     <span className="ml-2 font-medium">₫{selectedRequest.originalPrice?.toLocaleString()}</span>
                   </div>
+                  {selectedRequest.addOnsFee && selectedRequest.addOnsFee > 0 && (
+                    <div>
+                      <span className="text-slate-500">Add-ons:</span>
+                      <span className="ml-2 font-medium text-purple-600">₫{selectedRequest.addOnsFee?.toLocaleString()}</span>
+                    </div>
+                  )}
                   <div>
                     <span className="text-slate-500">Final:</span>
                     <span className="ml-2 font-semibold text-blue-600">₫{selectedRequest.finalPrice?.toLocaleString()}</span>
@@ -552,6 +591,12 @@ export default function PackageList() {
                     <div>
                       <span className="text-slate-500">Discount:</span>
                       <span className="ml-2 font-medium text-green-600">{selectedRequest.discountRate}%</span>
+                    </div>
+                  )}
+                  {selectedRequest.discountAmount && selectedRequest.discountAmount > 0 && (
+                    <div>
+                      <span className="text-slate-500">Saved:</span>
+                      <span className="ml-2 font-medium text-green-600">₫{selectedRequest.discountAmount?.toLocaleString()}</span>
                     </div>
                   )}
                 </div>
@@ -599,10 +644,26 @@ export default function PackageList() {
                 )}
               </div>
 
-              {/* Package Information (including Room) */}
+              {/* Package Information */}
               {basicPlanDetail && (
                 <div className="bg-white border rounded-lg p-4">
                   <h3 className="text-lg font-semibold text-slate-800 mb-3">Package Information</h3>
+                  
+                  {/* Package Type Badge */}
+                  <div className="flex items-center gap-3 mb-4">
+                    <Badge className={`${
+                      selectedRequest?.packageType?.toLowerCase() === 'combo' 
+                        ? 'bg-purple-500' 
+                        : 'bg-blue-500'
+                    } text-white`}>
+                      {selectedRequest?.packageType?.toUpperCase()}
+                    </Badge>
+                    <Badge variant="outline" className={
+                      selectedRequest?.requireBooking ? 'border-green-500 text-green-600' : 'border-orange-500 text-orange-600'
+                    }>
+                      {selectedRequest?.requireBooking ? 'With Room Booking' : 'Without Room Booking'}
+                    </Badge>
+                  </div>
                   
                   {/* Basic Package Details */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
@@ -634,19 +695,49 @@ export default function PackageList() {
                   </div>
 
                   {/* Entitlements */}
-                  {basicPlanDetail.entitlements && basicPlanDetail.entitlements.length > 0 && (
+                  {entitlementDetails && entitlementDetails.length > 0 && (
                     <div className="mb-4 pt-4 border-t">
                       <div className="text-sm text-slate-500 mb-2">Entitlements:</div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                        {basicPlanDetail.entitlements.map((entitlement, idx) => (
-                          <div key={idx} className="bg-slate-50 rounded px-3 py-2 text-sm">
-                            <span className="font-medium">Entitlement {idx + 1}:</span>
-                            <span className="ml-2 text-slate-600">{JSON.stringify(entitlement)}</span>
+                      <div className="space-y-3">
+                        {entitlementDetails.map((entitlement, idx) => (
+                          <div key={idx} className="bg-slate-50 rounded-lg p-4 border">
+                            <div className="flex items-center justify-between mb-2">
+                              <h5 className="font-semibold text-slate-800">{entitlement.entittlementRuleName}</h5>
+                              <Badge variant="outline" className="text-xs">
+                                {entitlement.nextUServiceName}
+                              </Badge>
+                            </div>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                              <div>
+                                <span className="text-slate-500">Price:</span>
+                                <span className="ml-2 font-medium">₫{entitlement.price?.toLocaleString()}</span>
+                              </div>
+                              <div>
+                                <span className="text-slate-500">Credit Amount:</span>
+                                <span className="ml-2 font-medium">{entitlement.creditAmount}</span>
+                              </div>
+                              <div>
+                                <span className="text-slate-500">Period:</span>
+                                <span className="ml-2 font-medium">{entitlement.period || 'Unlimited'}</span>
+                              </div>
+                              <div>
+                                <span className="text-slate-500">Limit/Period:</span>
+                                <span className="ml-2 font-medium">{entitlement.limitPerPeriod || 'Unlimited'}</span>
+                              </div>
+                            </div>
+                            {entitlement.note && (
+                              <div className="mt-2 pt-2 border-t">
+                                <span className="text-slate-500 text-sm">Note:</span>
+                                <span className="ml-2 text-sm">{entitlement.note}</span>
+                              </div>
+                            )}
                           </div>
                         ))}
                       </div>
                     </div>
                   )}
+
+
 
                   {/* Room Information as part of Package */}
                   {roomDetail && (

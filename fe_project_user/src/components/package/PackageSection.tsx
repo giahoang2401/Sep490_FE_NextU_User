@@ -139,11 +139,26 @@ export default function PackageSection({
   const [fetchedBasicPlans, setFetchedBasicPlans] = useState<Set<string>>(new Set());
   const [fetchedDurations, setFetchedDurations] = useState<Set<string>>(new Set());
   
-  // --- FILTER BASIC PLANS BY PROPERTY ---
+  // --- FILTER BASIC PLANS BY PROPERTY AND DURATION ID ---
   const filteredBasic = useMemo(() => {
     if (!selectedProperty) return [];
     return Array.isArray(basicPlans)
-      ? basicPlans.filter((b) => b.propertyId === selectedProperty)
+      ? basicPlans.filter((b) => {
+          // First filter by property
+          if (b.propertyId !== selectedProperty) return false;
+          
+          // Then filter by planDurationId - only show packages with planDurationId = 1 or 2
+          if (b.planDurations && Array.isArray(b.planDurations) && b.planDurations.length > 0) {
+            const duration = b.planDurations[0];
+            const planDurationId = duration.planDurationId;
+            
+            // Only show packages with planDurationId = 1 or 2
+            return planDurationId === 1 || planDurationId === 2;
+          }
+          
+          // If no duration info, don't show the package
+          return false;
+        })
       : [];
   }, [basicPlans, selectedProperty]);
 
@@ -322,13 +337,29 @@ export default function PackageSection({
   const limitedCombos = isPreview ? filteredCombo.slice(0, 3) : (maxPackages ? filteredCombo.slice(0, maxPackages) : filteredCombo);
   const limitedBasic = isPreview ? filteredBasic.slice(0, 3) : (maxPackages ? filteredBasic.slice(0, maxPackages) : filteredBasic);
   
-  console.log('DEBUG Combo packages filtering:', {
+  console.log('DEBUG Package filtering:', {
+    totalBasicPlans: basicPlans?.length || 0,
     totalComboPlans: comboPlans?.length || 0,
     selectedProperty,
+    filteredBasic: filteredBasic?.length || 0,
     filteredCombo: filteredCombo?.length || 0,
+    limitedBasic: limitedBasic?.length || 0,
     limitedCombos: limitedCombos?.length || 0,
+    basicPlansSample: basicPlans?.[0] || null,
     comboPlansSample: comboPlans?.[0] || null
   });
+
+  // Debug: Log detailed filtering for basic plans
+  if (basicPlans && basicPlans.length > 0) {
+    console.log('=== BASIC PLANS FILTERING DEBUG ===');
+    basicPlans.forEach((plan, index) => {
+      const duration = plan.planDurations?.[0];
+      const planDurationId = duration?.planDurationId;
+      const shouldShow = planDurationId === 1 || planDurationId === 2;
+      console.log(`Plan ${index + 1}: "${plan.name}" - planDurationId: ${planDurationId}, Should show: ${shouldShow}`);
+    });
+    console.log('=== END DEBUG ===');
+  }
   
 
 

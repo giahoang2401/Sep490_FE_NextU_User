@@ -29,13 +29,7 @@ export default function EventCard({ event, variant = 'default' }: EventCardProps
   const [ticketAvailability, setTicketAvailability] = useState<Record<string, TicketAvailability>>({})
   const [loadingAvailability, setLoadingAvailability] = useState<Record<string, boolean>>({})
 
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: event.currency,
-      minimumFractionDigits: 0,
-    }).format(price)
-  }
+
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
@@ -175,7 +169,7 @@ export default function EventCard({ event, variant = 'default' }: EventCardProps
     return (
       <Link href={`/ecosystem/events/${event.id}`}>
         <Card 
-          className="group cursor-pointer transition-all duration-300 hover:shadow-lg hover:scale-105 border-0 bg-white"
+          className="group cursor-pointer transition-all duration-300 hover:shadow-lg hover:scale-105 border-0 bg-white h-full flex flex-col"
           onMouseEnter={() => setIsHovered(true)}
           onMouseLeave={() => setIsHovered(false)}
         >
@@ -205,7 +199,7 @@ export default function EventCard({ event, variant = 'default' }: EventCardProps
             </Button>
           </div>
 
-          <CardContent className="p-4">
+          <CardContent className="p-4 flex-1">
             <div className="flex items-start justify-between mb-2">
               <Badge variant="secondary" className="text-xs">
                 {event.category.name}
@@ -215,11 +209,11 @@ export default function EventCard({ event, variant = 'default' }: EventCardProps
               </Badge>
             </div>
 
-            <h3 className="font-semibold text-lg mb-2 line-clamp-2 group-hover:text-blue-600 transition-colors">
+            <h3 className="font-semibold text-lg mb-2 line-clamp-2 group-hover:text-blue-600 transition-colors min-h-[3rem]">
               {event.title}
             </h3>
 
-            <p className="text-gray-600 text-sm mb-3 line-clamp-2">
+            <p className="text-gray-600 text-sm mb-3 line-clamp-2 min-h-[3rem]">
               {event.shortDescription}
             </p>
 
@@ -274,14 +268,9 @@ export default function EventCard({ event, variant = 'default' }: EventCardProps
             </div>
           </CardContent>
 
-          <CardFooter className="p-4 pt-0">
-            <div className="flex items-center justify-between w-full">
-              <div>
-                <span className="text-lg font-bold text-blue-600">
-                  {formatPrice(event.price)}
-                </span>
-              </div>
-              <Button size="sm" className="bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600">
+          <CardFooter className="p-4 pt-0 mt-auto">
+            <div className="flex items-center justify-center w-full">
+              <Button size="sm" className="bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 w-full">
                 View Details
               </Button>
             </div>
@@ -294,7 +283,7 @@ export default function EventCard({ event, variant = 'default' }: EventCardProps
   return (
     <Link href={`/ecosystem/events/${event.id}`}>
       <Card 
-        className="group cursor-pointer transition-all duration-300 hover:shadow-xl hover:scale-105 border-0 bg-white"
+        className="group cursor-pointer transition-all duration-300 hover:shadow-xl hover:scale-105 border-0 bg-white h-full flex flex-col"
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       >
@@ -324,7 +313,7 @@ export default function EventCard({ event, variant = 'default' }: EventCardProps
           </Button>
         </div>
 
-        <CardContent className="p-6">
+        <CardContent className="p-6 flex-1">
           <div className="flex items-start justify-between mb-3">
             <div className="flex gap-2">
               <Badge variant="secondary">
@@ -336,11 +325,11 @@ export default function EventCard({ event, variant = 'default' }: EventCardProps
             </Badge>
           </div>
 
-          <h3 className="font-bold text-xl mb-3 line-clamp-2 group-hover:text-blue-600 transition-colors">
+          <h3 className="font-bold text-xl mb-3 line-clamp-2 group-hover:text-blue-600 transition-colors min-h-[3.5rem]">
             {event.title}
           </h3>
 
-          <p className="text-gray-600 mb-4 line-clamp-3">
+          <p className="text-gray-600 mb-4 line-clamp-3 min-h-[4.5rem]">
             {event.shortDescription}
           </p>
 
@@ -391,26 +380,20 @@ export default function EventCard({ event, variant = 'default' }: EventCardProps
           </div>
 
           {/* Tags */}
-          <div className="flex gap-1 mb-4">
+          <div className="flex gap-1 mb-4 min-h-[2rem]">
             {event.tags.slice(0, 2).map((tag) => (
               <Badge key={tag} variant="outline" className="text-xs">
                 <Tag className="h-3 w-3 mr-1" />
-                {tag}
               </Badge>
             ))}
           </div>
         </CardContent>
 
-        <CardFooter className="p-6 pt-0">
-          <div className="flex items-center justify-between w-full">
-            <div>
-              <span className="text-xl font-bold text-blue-600">
-                {formatPrice(event.price)}
-              </span>
-            </div>
+        <CardFooter className="p-6 pt-0 mt-auto">
+          <div className="flex items-center justify-center w-full">
             <Button 
               size="lg" 
-              className="bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600"
+              className="bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 w-full"
             >
               View Details
             </Button>
