@@ -26,6 +26,12 @@ const nextConfig = {
         port: '',
         pathname: '/media-files/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'nextuimgstore.blob.core.windows.net',
+        port: '',
+        pathname: '/media-files/**',
+      },
     ],
   },
 };

@@ -5,7 +5,7 @@ import { notFound } from 'next/navigation'
 import { useRouter } from 'next/navigation'
 import EventDetail from '@/components/ecosystem/event/EventDetail'
 import { TransformedEvent } from '@/data/ecosystem/event-api'
-import { eventService } from '@/utils/eventService'
+import { eventService } from '@/api/eventService'
 
 interface EventDetailPageProps {
   params: {

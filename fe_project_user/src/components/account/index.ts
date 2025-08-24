@@ -1,0 +1,5 @@
+export { default as AboutMe } from './about-me'
+export { default as ChangePassword } from './change-password'
+export { default as Interests } from './interests'
+export { default as PhotoDescription } from './photo-description'
+export { default as ProfessionSkills } from './proffession-skill'

@@ -6,7 +6,11 @@ import { DatePickerModal } from "@/components/date-picker-modal";
 import { isLogged } from "@/utils/auth";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useAuth } from "@/components/auth-context";
-import { AlertCircle, UserCheck, Star, MapPin, Bed, Bath, Users, Wifi, CheckCircle, Calendar, Clock, Calendar as CalendarIcon, Zap, Award } from "lucide-react";
+import { AlertCircle, UserCheck, Star, MapPin, Bed, Bath, Users, Wifi, CheckCircle, Calendar, Clock, Calendar as CalendarIcon, Zap, Award, Building, Eye, Maximize, X } from "lucide-react";
+// Markdown rendering
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import rehypeSanitize from 'rehype-sanitize';
 
 
 
@@ -31,6 +35,11 @@ export default function ComboPackageDetail({ id, router }: { id: string, router:
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [activeTab, setActiveTab] = useState<string>("details");
   const [hoveredRoomId, setHoveredRoomId] = useState<string | null>(null);
+  
+  // Room detail modal states
+  const [showRoomDetail, setShowRoomDetail] = useState(false);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [viewingRoom, setViewingRoom] = useState<any>(null); // Room đang xem trong modal
   
   // Refs for sections
   const detailsRef = useRef<HTMLDivElement>(null);
@@ -58,7 +67,30 @@ export default function ComboPackageDetail({ id, router }: { id: string, router:
             comboData.basicPlanIds.map(async (bid: string) => {
               try {
                 const res = await api.get(`/api/membership/BasicPlans/${bid}`);
-                return res.data || res;
+                const basicData = res.data || res;
+                
+                // Fetch entitlements for each basic plan
+                if (basicData.entitlements && basicData.entitlements.length > 0) {
+                  const entitlementsWithDetails = await Promise.all(
+                    basicData.entitlements.map(async (ent: any) => {
+                      try {
+                        // Use entitlementId from the entitlements array
+                        const entitlementRes = await api.get(`/api/membership/EntitlementRule/${ent.entitlementId}`);
+                        const entitlementData = entitlementRes.data || entitlementRes;
+                        return {
+                          ...ent,
+                          ...entitlementData
+                        };
+                      } catch (err) {
+                        console.error(`[ERROR] Failed to fetch entitlement rule ${ent.entitlementId}:`, err);
+                        return ent;
+                      }
+                    })
+                  );
+                  basicData.entitlements = entitlementsWithDetails;
+                }
+                
+                return basicData;
               } catch {
                 console.error(`[ERROR] Failed to fetch basic plan ${bid}`);
                 return null;
@@ -358,6 +390,32 @@ export default function ComboPackageDetail({ id, router }: { id: string, router:
 
   const priceBreakdown = calculateTotalPrice();
 
+  // Function to normalize escaped strings from API
+  const normalizeDescription = (text: string): string => {
+    if (!text) return '';
+    
+    return text
+      // Convert escaped newlines to actual newlines
+      .replace(/\\n/g, '\n')
+      // Convert escaped quotes
+      .replace(/\\"/g, '"')
+      .replace(/\\'/g, "'")
+      // Convert escaped backslashes
+      .replace(/\\\\/g, '\\')
+      // Convert Unicode escape sequences to actual characters
+      .replace(/\\u([0-9a-fA-F]{4})/g, (match, hex) => String.fromCharCode(parseInt(hex, 16)))
+      // Convert other common escape sequences
+      .replace(/\\t/g, '\t')
+      .replace(/\\r/g, '\r');
+  };
+
+  const handleRoomClick = (room: any) => {
+    // Chỉ mở modal, không set selectedRoom
+    setViewingRoom(room);
+    setCurrentImageIndex(0);
+    setShowRoomDetail(true);
+  };
+
   const handleSelectRoom = (room: any) => {
     setSelectedRoom(room);
   };
@@ -492,8 +550,8 @@ export default function ComboPackageDetail({ id, router }: { id: string, router:
           <div className="w-full border-b border-slate-200 mb-6 sticky top-16 z-30 bg-[#f0fbfd]">
             <nav className="flex flex-row gap-6 px-2 overflow-x-auto">
               {[
-                { key: "details", label: "Details" }, 
-                { key: "packages", label: "Packages" }, 
+                { key: "details", label: "Overview" }, 
+                { key: "packages", label: "Package Info" }, 
                 { key: "rooms", label: "Rooms" }, 
                 { key: "reviews", label: "Reviews" }
               ].map(tab => (
@@ -512,217 +570,520 @@ export default function ComboPackageDetail({ id, router }: { id: string, router:
             </nav>
           </div>
 
-          {/* Details Section */}
-          <div ref={detailsRef} className="bg-white rounded-2xl shadow border border-slate-200 p-8 mb-10">
-            <div className="flex flex-col md:flex-row md:items-center md:gap-8 gap-4 mb-6">
-              <div className="flex items-center gap-2 text-slate-700 text-base"><Users className="h-5 w-5 mr-1" /> {basicDetails.length} packages</div>
-              <div className="flex items-center gap-2 text-slate-700 text-base"><Calendar className="h-5 w-5 mr-1" /> 3 months min.</div>
-              <div className="flex items-center gap-2 text-slate-700 text-base"><Award className="h-5 w-5 mr-1" /> {combo.planLevelName}</div>
-            </div>
-            <hr className="my-4" />
-            <div className="space-y-6">
-              <div>
-                <h3 className="text-xl font-semibold text-slate-800 mb-3">Description</h3>
-                <p className="text-slate-600 leading-relaxed">{combo.description || 'This combo package includes multiple services and accommodations for a complete living experience.'}</p>
-              </div>
-              <div>
-                <h3 className="text-xl font-semibold text-slate-800 mb-4">Package Information</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div className="flex items-center gap-2">
-                    <CheckCircle className="h-5 w-5 text-green-500" />
-                    <span className="text-slate-600">Level: {combo.planLevelName}</span>
+          {/* Main Content Box - All sections combined */}
+          <div className="bg-white rounded-2xl shadow border border-slate-200 p-8 mb-10">
+            {/* Package Details Section */}
+            <div className="mb-8">
+              <h3 className="text-xl font-semibold text-slate-800 mb-6">Package Details</h3>
+              <div className="flex items-stretch mb-8">
+                {/* Left Column - 3 fields */}
+                <div className="flex-1 pr-8">
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 flex items-center justify-center">
+                        <Users className="w-5 h-5 text-slate-600" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="text-sm text-slate-500 font-medium">Total Packages</div>
+                        <div className="text-slate-800 font-semibold">{basicDetails.length} packages</div>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 flex items-center justify-center">
+                        <Calendar className="w-5 h-5 text-slate-600" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="text-sm text-slate-500 font-medium">Minimum Duration</div>
+                        <div className="text-slate-800 font-semibold">3 months min.</div>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 flex items-center justify-center">
+                        <Award className="w-5 h-5 text-slate-600" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="text-sm text-slate-500 font-medium">Plan Level</div>
+                        <div className="text-slate-800 font-semibold">{combo.planLevelName}</div>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <CheckCircle className="h-5 w-5 text-green-500" />
-                    <span className="text-slate-600">Target: {combo.targetAudienceName}</span>
+                </div>
+                
+                {/* Center Divider */}
+                <div className="w-px bg-slate-200 mx-4"></div>
+                
+                {/* Right Column - 2 fields */}
+                <div className="flex-1 pl-8">
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 flex items-center justify-center">
+                        <span className="text-slate-600 font-bold text-lg">#</span>
+                      </div>
+                      <div className="flex-1">
+                        <div className="text-sm text-slate-500 font-medium">Package Code</div>
+                        <div className="text-slate-800 font-semibold">{combo.code}</div>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 flex items-center justify-center">
+                        <span className="text-slate-600 font-bold text-lg">%</span>
+                      </div>
+                      <div className="flex-1">
+                        <div className="text-sm text-slate-500 font-medium">Discount Rate</div>
+                        <div className="text-slate-800 font-semibold">{(combo.discountRate * 100).toFixed(0)}% off</div>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <CheckCircle className="h-5 w-5 text-green-500" />
-                    <span className="text-slate-600">Discount: {combo.discountRate * 100}% off</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <CheckCircle className="h-5 w-5 text-green-500" />
-                    <span className="text-slate-600">Code: {combo.code}</span>
-                  </div>
-
                 </div>
               </div>
-            </div>
-          </div>
+              
+              {/* Package Entitlements - Grouped by Service Type */}
+              <div className="space-y-8">
+                {/* Non-booking services group (serviceType = 1) */}
+                {(() => {
+                  const nonBookingBasics = sortedBasics.filter(b => b.serviceType === 1);
+                  if (nonBookingBasics.length === 0) return null;
+                  
+                  return (
+                    <div>
+                      <div className="flex items-center gap-2 mb-6">
+                        <Zap className="h-5 w-5 text-green-500" />
+                        <span className="text-xl font-semibold text-green-700">{nonBookingBasics[0]?.nextUServiceName || 'Lifestyle Services'}</span>
+                      </div>
+                      
+                      <div className="flex gap-6">
+                        {/* Left Column */}
+                        <div className="flex-1">
+                          {nonBookingBasics.slice(0, Math.ceil(nonBookingBasics.length / 2)).map((basic, idx) => (
+                            <div key={basic.id || idx} className="pb-4 border-b border-slate-200 last:border-b-0">
+                              <div className="font-bold text-base text-slate-800 mb-2">{basic.name}</div>
+                              <div className="flex gap-4 text-xs text-slate-500 mb-3">
+                                <span>Code: {basic.code}</span>
+                                <span>Price: ₫{basic.price?.toLocaleString()}</span>
+                              </div>
+                              {basic.entitlements && basic.entitlements.length > 0 && (
+                                <div>
+                                  {basic.entitlements.map((ent: any, i: number) => (
+                                    <div key={i} className="bg-slate-50 rounded p-3">
+                                      <div className="font-medium text-slate-700 mb-2 text-center text-sm">{ent.entittlementRuleName || 'Entitlement'}</div>
+                                      <div className="grid grid-cols-3 gap-2 text-xs">
+                                        <div className="text-center">
+                                          <div className="font-medium text-slate-600 mb-1">Period</div>
+                                          <div className="text-slate-800 font-semibold">{ent.period === 0 ? 'Weekly' : 'Monthly'}</div>
+                                        </div>
+                                        <div className="text-center">
+                                          <div className="font-medium text-slate-600 mb-1">Limit</div>
+                                          <div className="text-slate-800 font-semibold">{ent.limitPerPeriod || 'N/A'}</div>
+                                        </div>
+                                        <div className="text-center">
+                                          <div className="font-medium text-slate-600 mb-1">Credit</div>
+                                          <div className="text-slate-800 font-semibold">{ent.creditAmount || 'N/A'}</div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                        
+                        {/* Center Divider */}
+                        <div className="w-px bg-slate-200"></div>
+                        
+                        {/* Right Column */}
+                        <div className="flex-1">
+                          {nonBookingBasics.slice(Math.ceil(nonBookingBasics.length / 2)).map((basic, idx) => (
+                            <div key={basic.id || idx} className="pb-4 border-b border-slate-200 last:border-b-0">
+                              <div className="font-bold text-base text-slate-800 mb-2">{basic.name}</div>
+                              <div className="flex gap-4 text-xs text-slate-500 mb-3">
+                                <span>Code: {basic.code}</span>
+                                <span>Price: ₫{basic.price?.toLocaleString()}</span>
+                              </div>
+                              {basic.entitlements && basic.entitlements.length > 0 && (
+                                <div>
+                                  {basic.entitlements.map((ent: any, i: number) => (
+                                    <div key={i} className="bg-slate-50 rounded p-3">
+                                      <div className="font-medium text-slate-700 mb-2 text-center text-sm">{ent.entittlementRuleName || 'Entitlement'}</div>
+                                      <div className="grid grid-cols-3 gap-2 text-xs">
+                                        <div className="text-center">
+                                          <div className="font-medium text-slate-600 mb-1">Period</div>
+                                          <div className="text-slate-800 font-semibold">{ent.period === 0 ? 'Weekly' : 'Monthly'}</div>
+                                        </div>
+                                        <div className="text-center">
+                                          <div className="font-medium text-slate-600 mb-1">Limit</div>
+                                          <div className="text-slate-800 font-semibold">{ent.limitPerPeriod || 'N/A'}</div>
+                                        </div>
+                                        <div className="text-center">
+                                          <div className="font-medium text-slate-600 mb-1">Credit</div>
+                                          <div className="text-slate-800 font-semibold">{ent.creditAmount || 'N/A'}</div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
 
-          {/* Packages Section */}
-          <div ref={packagesRef} className="bg-white rounded-2xl shadow border border-slate-200 p-8 mb-10">
-            <h2 className="text-2xl font-bold text-slate-800 mb-4">Included Packages</h2>
-            <hr className="w-12 border-slate-300 mb-6" />
+                {/* Divider between service types */}
+                <hr className="border-slate-200" />
+
+                {/* Booking services group (serviceType = 0) */}
+                {(() => {
+                  const bookingBasics = sortedBasics.filter(b => b.serviceType === 0);
+                  if (bookingBasics.length === 0) return null;
+                  
+                  return (
+                    <div>
+                      <div className="flex items-center gap-2 mb-6">
+                        <Bed className="h-5 w-5 text-blue-500" />
+                        <span className="text-xl font-semibold text-blue-700">{bookingBasics[0]?.nextUServiceName || 'Accommodation'}</span>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-8">
+                        {/* Left Column */}
+                        <div className="space-y-6">
+                          {bookingBasics.slice(0, Math.ceil(bookingBasics.length / 2)).map((basic, idx) => (
+                            <div key={basic.id || idx} className="pb-6 border-b border-slate-200 last:border-b-0">
+                              <div className="font-bold text-lg text-slate-800 mb-3">{basic.name}</div>
+                              <div className="flex gap-6 text-sm text-slate-500 mb-4">
+                                <span>Code: {basic.code}</span>
+                                <span>Price: ₫{basic.price?.toLocaleString()}</span>
+                              </div>
+                              {basic.acomodations && basic.acomodations.length > 0 && (
+                                <div className="text-sm text-slate-600 bg-slate-50 rounded-lg p-4">
+                                  <div className="font-medium text-slate-700 mb-2">Room Type:</div>
+                                  <div className="text-slate-800">{basic.acomodations[0].roomType} - {basic.acomodations[0].accomodationDescription}</div>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                        
+                        {/* Center Divider */}
+                        <div className="w-px bg-slate-200 mx-4"></div>
+                        
+                        {/* Right Column */}
+                        <div className="space-y-6">
+                          {bookingBasics.slice(Math.ceil(bookingBasics.length / 2)).map((basic, idx) => (
+                            <div key={basic.id || idx} className="pb-6 border-b border-slate-200 last:border-b-0">
+                              <div className="font-bold text-lg text-slate-800 mb-3">{basic.name}</div>
+                              <div className="flex gap-6 text-sm text-slate-500 mb-4">
+                                <span>Code: {basic.code}</span>
+                                <span>Price: ₫{basic.price?.toLocaleString()}</span>
+                              </div>
+                              {basic.acomodations && basic.acomodations.length > 0 && (
+                                <div className="text-sm text-slate-600 bg-slate-50 rounded-lg p-4">
+                                  <div className="font-medium text-slate-700 mb-2">Room Type:</div>
+                                  <div className="text-slate-800">{basic.acomodations[0].roomType} - {basic.acomodations[0].accomodationDescription}</div>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
             
-            <div className="space-y-6">
-              {/* Non-booking services first (serviceType = 1) */}
-              {sortedBasics.filter(b => b.serviceType === 1).map((basic, idx) => (
-                <Card key={basic.id || idx} className="border border-slate-200 rounded-xl shadow-sm">
-                  <CardContent className="p-6">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Zap className="h-5 w-5 text-green-500" />
-                          <span className="text-sm font-medium text-green-600 bg-green-50 px-2 py-1 rounded-full">{basic.nextUServiceName || 'Service'}</span>
-                        </div>
-                        <div className="font-bold text-lg text-slate-800 mb-1">{basic.name}</div>
-                        <div className="text-slate-600 mb-2">{basic.description}</div>
-                        <div className="flex gap-4 text-sm text-slate-500">
-                          <span>Code: {basic.code}</span>
-                          <span>Price: ₫{basic.price?.toLocaleString()}</span>
-                        </div>
-                        {basic.entitlements && basic.entitlements.length > 0 && (
-                          <div className="mt-3">
-                            <div className="text-sm font-medium text-slate-700 mb-2">Entitlements:</div>
-                            <div className="flex flex-wrap gap-2">
-                              {basic.entitlements.map((ent: any, i: number) => (
-                                <span key={i} className="text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded-full">
-                                  {ent.nextUSerName}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-
-              {/* Booking services (serviceType = 0) */}
-              {sortedBasics.filter(b => b.serviceType === 0).map((basic, idx) => (
-                <Card key={basic.id || idx} className="border border-slate-200 rounded-xl shadow-sm">
-                  <CardContent className="p-6">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Bed className="h-5 w-5 text-blue-500" />
-                          <span className="text-sm font-medium text-blue-600 bg-blue-50 px-2 py-1 rounded-full">{basic.nextUServiceName || 'Booking Service'}</span>
-                        </div>
-                        <div className="font-bold text-lg text-slate-800 mb-1">{basic.name}</div>
-                        <div className="text-slate-600 mb-2">{basic.description}</div>
-                        <div className="flex gap-4 text-sm text-slate-500">
-                          <span>Code: {basic.code}</span>
-                          <span>Price: ₫{basic.price?.toLocaleString()}</span>
-                        </div>
-                        {basic.acomodations && basic.acomodations.length > 0 && (
-                          <div className="mt-3">
-                            <div className="text-sm font-medium text-slate-700 mb-2">Room Type:</div>
-                            <div className="text-sm text-slate-600">
-                              {basic.acomodations[0].roomType} - {basic.acomodations[0].accomodationDescription}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </div>
-
-          {/* Rooms Section */}
-          {accommodationBasic && (
-            <div ref={roomsRef} className="bg-white/90 rounded-2xl shadow border border-slate-200 p-6 mb-8">
-              {/* Header row: title/desc left, button right */}
-              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-4">
-                <div>
-                  <h2 className="text-2xl font-bold mb-1">Room options</h2>
-                  <div className="text-slate-600">Choose your room in this accommodation package.</div>
-                </div>
-                <div className="mt-2 md:mt-0">
-                  {(!accommodationSelectedDates || !accommodationSelectedDates.moveIn || !accommodationSelectedDates.moveOut) ? (
-                    <Button
-                      className="rounded-full px-8 py-3 text-base font-semibold bg-black text-white hover:bg-slate-800"
-                      onClick={() => setShowDatePicker(prev => ({ ...prev, [accommodationBasicId]: true }))}
-                    >
-                      Check availability
-                    </Button>
-                  ) : (
-                    <button
-                      type="button"
-                      className="flex items-center justify-center rounded-full border border-slate-200 bg-white px-8 py-3 text-base font-semibold text-slate-700 shadow-sm min-w-[280px]"
-                      onClick={() => setShowDatePicker(prev => ({ ...prev, [accommodationBasicId]: true }))}
-                    >
-                      {accommodationSelectedDates.moveIn?.toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short' })} -&gt; {accommodationSelectedDates.moveOut?.toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })}
-                    </button>
-                  )}
-                </div>
+            {/* Divider */}
+            <hr className="border-slate-200 mb-8" />
+            
+            {/* Combo Description Section */}
+            <div ref={detailsRef} className="mb-8">
+              <h3 className="text-xl font-semibold text-slate-800 mb-3">Description</h3>
+              <div className="prose prose-sm max-w-none text-slate-600 leading-relaxed">
+                {combo.description ? (
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    rehypePlugins={[rehypeSanitize]}
+                  >
+                    {normalizeDescription(combo.description)}
+                  </ReactMarkdown>
+                ) : (
+                  <p className="whitespace-pre-line">This combo package includes multiple services and accommodations for a complete living experience.</p>
+                )}
               </div>
-              <hr className="my-4" />
-              {/* Private rooms section as a card/box */}
-              <div className="bg-slate-50 rounded-xl border border-slate-100 shadow-sm p-4">
-                <div className="grid grid-cols-1 gap-6">
-                  {accommodationRooms.length === 0 && <div className="text-slate-500">Không có phòng nào khả dụng cho gói này.</div>}
+            </div>
+            
+            {/* Divider */}
+            <hr className="border-slate-200 mb-8" />
+            
+            {/* Basic Package Information Section - Combined Descriptions */}
+            <div ref={packagesRef} className="mb-8">
+              <h3 className="text-xl font-semibold text-slate-800 mb-6">Package Information</h3>
+              <div className="space-y-6">
+                {/* Non-booking services descriptions */}
+                {sortedBasics.filter(b => b.serviceType === 1).map((basic, idx) => (
+                  <div key={basic.id || idx} className="pb-6 border-b border-slate-200 last:border-b-0">
+                    <div className="mb-4">
+                      <h4 className="font-semibold text-slate-800 text-lg mb-3">{basic.name}</h4>
+                      <div className="text-slate-600 text-sm leading-relaxed">
+                        {(() => {
+                          const description = basic.description || 'No description available';
+                          const isLong = description.length > 200;
+                          
+                          if (!isLong) {
+                            return <div>{description}</div>;
+                          }
+                          
+                          return (
+                            <div>
+                              <div className="mb-3">
+                                {description.slice(0, 200)}...
+                              </div>
+                              <button
+                                onClick={() => {
+                                  const element = document.getElementById(`desc-${basic.id}`);
+                                  if (element) {
+                                    element.style.display = element.style.display === 'none' ? 'block' : 'none';
+                                  }
+                                }}
+                                className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                              >
+                                View more
+                              </button>
+                              <div id={`desc-${basic.id}`} className="mt-3 hidden">
+                                {description}
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+
+                {/* Booking services descriptions */}
+                {sortedBasics.filter(b => b.serviceType === 0).map((basic, idx) => (
+                  <div key={basic.id || idx} className="pb-6 border-b border-slate-200 last:border-b-0">
+                    <div className="mb-4">
+                      <h4 className="font-semibold text-slate-800 text-lg mb-3">{basic.name}</h4>
+                      <div className="text-slate-600 text-sm leading-relaxed">
+                        {(() => {
+                          const description = basic.description || 'No description available';
+                          const isLong = description.length > 200;
+                          
+                          if (!isLong) {
+                            return <div>{description}</div>;
+                          }
+                          
+                          return (
+                            <div>
+                              <div className="mb-3">
+                                {description.slice(0, 200)}...
+                              </div>
+                              <button
+                                onClick={() => {
+                                  const element = document.getElementById(`desc-${basic.id}`);
+                                  if (element) {
+                                    element.style.display = element.style.display === 'none' ? 'block' : 'none';
+                                  }
+                                }}
+                                className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                              >
+                                View more
+                              </button>
+                              <div id={`desc-${basic.id}`} className="mt-3 hidden">
+                                {description}
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            
+            {/* Divider */}
+            <hr className="border-slate-200 mb-8" />
+
+            {/* Rooms Section */}
+            {accommodationBasic && (
+              <div ref={roomsRef} className="mb-8">
+                {/* Header row: title/desc left, button right */}
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-6">
+                  <div>
+                    <h2 className="text-2xl font-bold mb-1">Room options</h2>
+                    <div className="text-slate-600">Choose your room in this accommodation package.</div>
+                  </div>
+                  <div className="mt-2 md:mt-0">
+                    {(!accommodationSelectedDates || !accommodationSelectedDates.moveIn || !accommodationSelectedDates.moveOut) ? (
+                      <Button
+                        className="rounded-full px-8 py-3 text-base font-semibold bg-black text-white hover:bg-slate-800"
+                        onClick={() => setShowDatePicker(prev => ({ ...prev, [accommodationBasicId]: true }))}
+                      >
+                        Check availability
+                      </Button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="flex items-center justify-center rounded-full border border-slate-200 bg-white px-8 py-3 text-base font-semibold text-slate-700 shadow-sm min-w-[280px]"
+                        onClick={() => setShowDatePicker(prev => ({ ...prev, [accommodationBasicId]: true }))}
+                      >
+                        {accommodationSelectedDates.moveIn?.toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short' })} -&gt; {accommodationSelectedDates.moveOut?.toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })}
+                      </button>
+                    )}
+                  </div>
+                </div>
+                
+                {/* Room list */}
+                <div className="space-y-4">
+                  {accommodationRooms.length === 0 && (
+                    <div className="text-center py-8">
+                      <div className="text-slate-500 mb-2">No rooms available for this package.</div>
+                      <div className="text-sm text-slate-400">
+                        This might be due to system error or no rooms configured yet.
+                      </div>
+                    </div>
+                  )}
                   {accommodationRooms.map((room: any, idx: number) => {
                     const isSelected = selectedRoom && selectedRoom.id === room.id;
                     const availability = accommodationRoomAvailability[room.id] || {};
                     const status = availability.viewedBookingStatus || '';
                     const isAvailable = availability.available === true;
+                    
+                    // Calculate room price: package price + (addOnFee * 30 * duration)
+                    const durationValue = accommodationDuration ? Number(accommodationDuration.planDurationValue) : 1;
+                    const roomPrice = accommodationBasic.price + (room.addOnFee * 30 * durationValue);
+                    
                     return (
-                      <Card key={room.id} className={`border rounded-2xl shadow bg-white/80 ${isSelected ? 'ring-2 ring-blue-500' : ''}`}>
-                        <CardContent className="p-6 flex flex-col md:flex-row gap-6 items-center">
-                          <div className="flex-1 w-full">
-                            <div className="font-bold text-lg text-slate-800 mb-2">{room.roomName || room.roomTypeName}</div>
-                            <div className="text-slate-600 mb-1">{room.descriptionDetails}</div>
-                            <div className="text-slate-500 text-sm mb-1">Tầng: {room.floor} | Mã phòng: {room.roomCode}</div>
-                            <div className="text-slate-500 text-sm mb-1">Loại: {room.roomTypeName}</div>
-                            {room.addOnFee > 0 && (
-                              <div className="text-slate-500 text-sm mb-1">Addon: ₫{room.addOnFee?.toLocaleString()}/night</div>
+                      <div key={room.id} className={`p-6 ${isSelected ? 'bg-blue-50 border-l-4 border-blue-500' : 'bg-slate-50'} rounded-lg transition-all`}>
+                        <div className="flex flex-col md:flex-row gap-6">
+                          {/* Left: Room Image */}
+                          <div className="w-64 h-40 rounded-lg overflow-hidden bg-slate-200 flex-shrink-0">
+                            {room.medias && room.medias.length > 0 ? (
+                              <img 
+                                src={room.medias[0].url} 
+                                alt={room.roomName}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-slate-400">
+                                <Building className="w-16 h-16" />
+                              </div>
                             )}
-                            {/* Trạng thái phòng */}
-                            <div className="mt-2 text-sm">
-                              {isAvailable && <span className="text-green-600 font-semibold">{status}</span>}
-                              {!isAvailable && status && <span className="text-orange-600 font-semibold">{status}</span>}
+                          </div>
+                          
+                          {/* Right: Room Details */}
+                          <div className="flex-1">
+                            <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+                              {/* Room Info */}
+                              <div className="flex-1">
+                                <div className="font-bold text-lg text-slate-800 mb-2">{room.roomName || room.roomTypeName}</div>
+                                
+                                {/* Room Specifications Grid */}
+                                <div className="grid grid-cols-2 gap-4 text-sm">
+                                  <div className="flex items-center gap-2">
+                                    <Maximize className="h-4 w-4 text-slate-400" />
+                                    <span>{room.areaInSquareMeters}m²</span>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <Bed className="h-4 w-4 text-slate-400" />
+                                    <span>{room.numberOfBeds} beds</span>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <Eye className="h-4 w-4 text-slate-400" />
+                                    <span>{room.roomViewName}</span>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <Building className="h-4 w-4 text-slate-400" />
+                                    <span>{room.roomFloorName}</span>
+                                  </div>
+                                </div>
+                                
+                                {/* Room Status */}
+                                <div className="mt-3 text-sm">
+                                  {isAvailable && <span className="text-green-600 font-semibold">{status}</span>}
+                                  {!isAvailable && status && <span className="text-orange-600 font-semibold">{status}</span>}
+                                </div>
+                              </div>
+                              
+                              {/* Price and Actions */}
+                              <div className="flex flex-col items-end gap-3">
+                                <div className="text-right">
+                                  <div className="text-sm text-slate-500 mb-1">Total Price</div>
+                                  <div className="text-2xl font-bold text-blue-700">₫{roomPrice.toLocaleString()}</div>
+                                  <div className="text-xs text-slate-500">
+                                    Base: ₫{accommodationBasic.price?.toLocaleString()} + Add-on: ₫{(room.addOnFee * 30 * durationValue).toLocaleString()}
+                                  </div>
+                                </div>
+                                
+                                <div className="flex gap-2">
+                                  <Button
+                                    className="rounded-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow hover:shadow-lg transition"
+                                    onClick={() => handleRoomClick(room)}
+                                    variant="outline"
+                                  >
+                                    View Details
+                                  </Button>
+                                  <Button
+                                    className="rounded-full px-6 py-2 bg-gradient-to-r from-blue-500 to-teal-500 text-white font-semibold shadow hover:shadow-lg transition"
+                                    onClick={() => {
+                                      if (isSelected && hoveredRoomId === room.id) {
+                                        setSelectedRoom(null);
+                                      } else {
+                                        setSelectedRoom(room);
+                                      }
+                                    }}
+                                    variant={isSelected ? 'default' : 'outline'}
+                                    onMouseEnter={() => isSelected && setHoveredRoomId(room.id)}
+                                    onMouseLeave={() => isSelected && setHoveredRoomId(null)}
+                                    disabled={!isAvailable}
+                                  >
+                                    {isSelected
+                                      ? (hoveredRoomId === room.id ? 'Deselect' : 'Selected')
+                                      : isAvailable ? 'Select Room' : 'Cannot Select'}
+                                  </Button>
+                                </div>
+                              </div>
                             </div>
                           </div>
-                          <div className="flex flex-col gap-2 items-center">
-                            <div className="text-xl font-bold text-blue-700 mb-2">₫{calculateRoomPriceWithAddon(room).toLocaleString()}</div>
-                            <Button
-                              className="rounded-full px-6 py-2 bg-gradient-to-r from-blue-500 to-teal-500 text-white font-semibold shadow hover:shadow-lg transition"
-                              onClick={() => {
-                                if (isSelected && hoveredRoomId === room.id) {
-                                  setSelectedRoom(null);
-                                } else {
-                                  setSelectedRoom(null);
-                                  setSelectedRoom(room);
-                                }
-                              }}
-                              variant={isSelected ? 'default' : 'outline'}
-                              onMouseEnter={() => isSelected && setHoveredRoomId(room.id)}
-                              onMouseLeave={() => isSelected && setHoveredRoomId(null)}
-                              disabled={!isAvailable}
-                            >
-                              {isSelected
-                                ? (hoveredRoomId === room.id ? 'Bỏ chọn' : 'Đã chọn')
-                                : isAvailable ? 'Chọn phòng này' : 'Không thể chọn'}
-                            </Button>
-                          </div>
-                        </CardContent>
-                      </Card>
+                        </div>
+                        
+                        {/* Divider between rooms (except for last room) */}
+                        {idx < accommodationRooms.length - 1 && (
+                          <hr className="border-slate-200 mt-4" />
+                        )}
+                      </div>
                     );
                   })}
                 </div>
               </div>
-            </div>
-          )}
+            )}
+            
+            {/* Divider */}
+            <hr className="border-slate-200 mb-8" />
 
-          {/* Reviews Section */}
-          <div ref={reviewsRef} className="bg-white rounded-2xl shadow border border-slate-200 p-8 mb-10">
-            <h2 className="text-2xl font-bold text-slate-800 mb-4">Reviews</h2>
-            <hr className="w-12 border-slate-300 mb-6" />
-            <div className="text-center py-8">
-              <div className="text-5xl font-bold text-slate-800 mb-2">4.8</div>
-              <div className="flex items-center justify-center mb-2">
-                {[...Array(5)].map((_, i) => (
-                  <Star key={i} className="w-6 h-6 text-yellow-400 fill-yellow-400" />
-                ))}
+            {/* Reviews Section */}
+            <div ref={reviewsRef} className="mb-8">
+              <h2 className="text-2xl font-bold text-slate-800 mb-4">Reviews</h2>
+              <hr className="w-12 border-slate-300 mb-6" />
+              <div className="text-center py-8">
+                <div className="text-5xl font-bold text-slate-800 mb-2">4.8</div>
+                <div className="flex items-center justify-center mb-2">
+                  {[...Array(5)].map((_, i) => (
+                    <Star key={i} className="w-6 h-6 text-yellow-400 fill-yellow-400" />
+                  ))}
+                </div>
+                <div className="font-semibold text-green-600 text-lg mb-1">Excellent!</div>
+                <div className="text-slate-500">Based on 24 reviews</div>
               </div>
-              <div className="font-semibold text-green-600 text-lg mb-1">Excellent!</div>
-              <div className="text-slate-500">Based on 24 reviews</div>
             </div>
-          </div>
+          </div> {/* Close main content box */}
         </div>
 
         {/* Cột phải: Box booking */}
@@ -764,6 +1125,14 @@ export default function ComboPackageDetail({ id, router }: { id: string, router:
                   <Button 
                     className="w-full bg-black text-white font-bold py-3 text-lg rounded-full" 
                     disabled={!accommodationBasic || !accommodationSelectedDates?.moveIn || !accommodationSelectedDates?.moveOut}
+                    onClick={() => {
+                      if (accommodationBasic && accommodationSelectedDates?.moveIn && accommodationSelectedDates?.moveOut) {
+                        // Scroll to rooms section
+                        if (roomsRef.current) {
+                          roomsRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        }
+                      }
+                    }}
                   >
                     Select Room
                   </Button>
@@ -782,6 +1151,19 @@ export default function ComboPackageDetail({ id, router }: { id: string, router:
                     )}
                     <div className="text-3xl font-bold text-blue-700">₫{priceBreakdown.finalPrice?.toLocaleString()}</div>
                     <div className="text-slate-600">per month</div>
+                    
+                    {/* Combo Request Notice */}
+                    <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                      <div className="flex items-center gap-2 text-blue-700 text-sm">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span className="font-medium">Combo packages require staff approval</span>
+                      </div>
+                      <div className="text-blue-600 text-xs mt-1">
+                        Your request will be reviewed by our team
+                      </div>
+                    </div>
                     
                     {/* Dates smaller below room section */}
                     <div className="flex gap-2 mt-4 justify-center">
@@ -820,7 +1202,7 @@ export default function ComboPackageDetail({ id, router }: { id: string, router:
                       
                                              {priceBreakdown.addonCost > 0 && (
                          <div className="flex justify-between items-center text-sm text-slate-600">
-                           <span>Subtotal (from API)</span>
+                           <span>Subtotal </span>
                            <span>₫{priceBreakdown.subtotal?.toLocaleString()}</span>
                          </div>
                        )}
@@ -842,7 +1224,7 @@ export default function ComboPackageDetail({ id, router }: { id: string, router:
                       onClick={handlePayNow}
                       disabled={isPaying || !selectedRoom || !accommodationSelectedDates?.moveIn}
                     >
-                      {isPaying ? "Processing..." : "Buy"}
+                      {isPaying ? "Processing..." : "Send Request"}
                     </button>
                   </div>
                 </>
@@ -861,6 +1243,182 @@ export default function ComboPackageDetail({ id, router }: { id: string, router:
           onDatesSelect={dates => handleDateRangeSelect(accommodationBasic.id, dates)}
         />
       )}
+
+      {/* Room Detail Modal */}
+      <Dialog open={showRoomDetail} onOpenChange={setShowRoomDetail}>
+        <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
+          <DialogTitle className="text-xl font-semibold flex items-center gap-2">
+            <Building className="h-5 w-5" />
+            Room Information
+          </DialogTitle>
+          
+          {viewingRoom && (
+            <div className="space-y-6">
+              {/* Room Information */}
+              <div className="bg-white border rounded-lg p-4">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Left: Image Gallery */}
+                  <div className="space-y-4">
+                    {/* Main Image */}
+                    <div className="relative aspect-[4/3] rounded-lg overflow-hidden border bg-slate-100">
+                      {viewingRoom.medias && viewingRoom.medias.length > 0 ? (
+                        <>
+                          <img 
+                            src={viewingRoom.medias[currentImageIndex].url} 
+                            alt={viewingRoom.medias[currentImageIndex].description || 'Room image'}
+                            className="w-full h-full object-cover"
+                          />
+                          {/* Image Counter */}
+                          <div className="absolute bottom-3 right-3 bg-black/70 text-white text-xs px-2 py-1 rounded">
+                            {currentImageIndex + 1}/{viewingRoom.medias.length}
+                          </div>
+                          {/* Navigation Arrows */}
+                          {viewingRoom.medias.length > 1 && (
+                            <>
+                                                              <button 
+                                  className="absolute left-2 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white text-slate-700 p-2 rounded-full shadow-lg transition-all"
+                                  onClick={() => setCurrentImageIndex((prev) => (prev === 0 ? viewingRoom.medias.length - 1 : prev - 1))}
+                                >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                                </svg>
+                              </button>
+                                                              <button 
+                                  className="absolute right-2 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white text-slate-700 p-2 rounded-full shadow-lg transition-all"
+                                  onClick={() => setCurrentImageIndex((prev) => (prev === viewingRoom.medias.length - 1 ? 0 : prev + 1))}
+                                >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                </svg>
+                              </button>
+                            </>
+                          )}
+                        </>
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-slate-400">
+                          <svg className="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Thumbnail Navigation */}
+                    {viewingRoom.medias && viewingRoom.medias.length > 1 && (
+                      <div className="grid grid-cols-4 gap-2">
+                        {viewingRoom.medias.slice(0, 8).map((media: any, idx: number) => (
+                          <div 
+                            key={idx} 
+                            className={`aspect-square rounded-lg overflow-hidden border-2 cursor-pointer transition-all ${
+                              currentImageIndex === idx ? 'border-blue-500' : 'border-transparent hover:border-blue-300'
+                            }`}
+                            onClick={() => setCurrentImageIndex(idx)}
+                          >
+                            <img 
+                              src={media.url} 
+                              alt={media.description || `Room thumbnail ${idx + 1}`}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                        ))}
+                        {/* Show "+.." indicator if there are more than 8 images */}
+                        {viewingRoom.medias.length > 8 && (
+                          <div className="aspect-square rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center bg-gray-50">
+                            <span className="text-gray-500 text-sm font-medium">+{viewingRoom.medias.length - 8}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Right: Room Details */}
+                  <div className="space-y-4">
+                    {/* Combined Description and Room Specifications */}
+                    <div className="bg-white border rounded-lg p-4">
+                      {/* Description Section */}
+                      <div className="mb-4">
+                        <h5 className="font-semibold text-slate-800 mb-3">Description</h5>
+                        <div className="bg-slate-50 rounded-lg p-3 text-sm text-slate-700">
+                          {viewingRoom.descriptionDetails || 'No description available'}
+                        </div>
+                      </div>
+
+                      {/* Divider */}
+                      <div className="border-t border-slate-200 mb-4"></div>
+
+                      {/* Room Specifications Section */}
+                      <div>
+                        <h5 className="font-semibold text-slate-800 mb-3">Room Specifications</h5>
+                        
+                        {/* Room Specifications in 4 rows with 2 columns each */}
+                        <div className="space-y-3 text-sm">
+                          {/* Row 1: Room Code | Room Type */}
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="flex justify-between items-center gap-3">
+                              <span className="text-slate-500">Room Code:</span>
+                              <span className="font-medium">{viewingRoom.roomCode}</span>
+                            </div>
+                            <div className="flex justify-between items-center gap-3">
+                              <span className="text-slate-500">Room Type:</span>
+                              <span 
+                                className="font-medium text-right truncate min-w-0 max-w-[70%] cursor-pointer hover:text-blue-600 transition-colors" 
+                                title={`Click to see full: ${viewingRoom.roomTypeName}`}
+                                onClick={() => {
+                                  if (viewingRoom.roomTypeName.length > 15) {
+                                    alert(`Full Room Type: ${viewingRoom.roomTypeName}`);
+                                  }
+                                }}
+                              >
+                                {viewingRoom.roomTypeName}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Row 2: Area | View */}
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="flex justify-between items-center">
+                              <span className="text-slate-500">Area:</span>
+                              <span className="font-medium">{viewingRoom.areaInSquareMeters} m²</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span className="text-slate-500">View:</span>
+                              <span className="font-medium">{viewingRoom.roomViewName}</span>
+                            </div>
+                          </div>
+
+                          {/* Row 3: Size | Floor */}
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="flex justify-between items-center">
+                              <span className="text-slate-500">Size:</span>
+                              <span className="font-medium">{viewingRoom.roomSizeName}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span className="text-slate-500">Floor:</span>
+                              <span className="font-medium">{viewingRoom.roomFloorName}</span>
+                            </div>
+                          </div>
+
+                          {/* Row 4: Bed Type | Number of Beds */}
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="flex justify-between items-center">
+                              <span className="text-slate-500">Bed Type:</span>
+                              <span className="font-medium">{viewingRoom.bedTypeName}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span className="text-slate-500">Number of Beds:</span>
+                              <span className="font-medium">{viewingRoom.numberOfBeds}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
       {showAuthModal && (
         <Dialog open={showAuthModal} onOpenChange={setShowAuthModal}>
           <DialogContent className="max-w-sm p-8 text-center flex flex-col items-center">

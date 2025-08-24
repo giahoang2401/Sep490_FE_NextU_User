@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import EventNavigation from '@/components/ecosystem/event/EventNavigation'
 import EventGrid from '@/components/ecosystem/event/EventGrid'
 import { TransformedEvent } from '@/data/ecosystem/event-api'
-import { eventService } from '@/utils/eventService'
+import { eventService } from '@/api/eventService'
 
 export default function EventsPage() {
   const [events, setEvents] = useState<TransformedEvent[]>([])

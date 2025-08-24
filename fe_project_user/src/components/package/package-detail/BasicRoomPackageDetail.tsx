@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Star, MapPin, Bed, Bath, Users, Wifi, CheckCircle, Calendar, Clock, Calendar as CalendarIcon, AlertCircle, UserCheck } from "lucide-react";
+import { Star, MapPin, Bed, Bath, Users, Wifi, CheckCircle, Calendar, Clock, Calendar as CalendarIcon, AlertCircle, UserCheck, Building, Eye, Maximize, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DatePickerModal } from "@/components/date-picker-modal";
 // import { DurationModal } from "@/components/duration-modal";
@@ -13,6 +13,10 @@ import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/compone
 import { useAuth } from "@/components/auth-context";
 // Google Maps dynamic import
 import { GoogleMap, Marker, useJsApiLoader } from '@react-google-maps/api';
+// Markdown rendering
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import rehypeSanitize from 'rehype-sanitize';
 
 const containerStyle = { width: '100%', height: '350px', borderRadius: '16px' };
 const center = { lat: 21.035072, lng: 105.841941 };
@@ -157,6 +161,7 @@ export default function BasicRoomPackageDetail({ id, router }: { id: string, rou
   const [hoveredRoomId, setHoveredRoomId] = useState<string | null>(null);
   const [isPaying, setIsPaying] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [roomAvailability, setRoomAvailability] = useState<any>({}); // { [roomId]: { viewedBookingStatus, from, to } }
   const { isLoggedIn } = useAuth();
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -165,6 +170,11 @@ export default function BasicRoomPackageDetail({ id, router }: { id: string, rou
   const roomsRef = useRef<HTMLDivElement>(null);
   const locationRef = useRef<HTMLDivElement>(null);
   const reviewsRef = useRef<HTMLDivElement>(null);
+
+  // Room detail modal states
+  const [showRoomDetail, setShowRoomDetail] = useState(false);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [viewingRoom, setViewingRoom] = useState<any>(null); // Room đang xem trong modal
 
   // Lưu selectedRoom vào localStorage để giữ khi reload
   useEffect(() => {
@@ -447,28 +457,47 @@ export default function BasicRoomPackageDetail({ id, router }: { id: string, rou
     }
   };
 
+  const handleRoomClick = (room: any) => {
+    // Chỉ mở modal, không set selectedRoom
+    setViewingRoom(room);
+    setCurrentImageIndex(0);
+    setShowRoomDetail(true);
+  };
+
   if (loading) return <div className="min-h-screen flex items-center justify-center text-lg">Đang tải dữ liệu...</div>;
   if (!pkg) return <div className="min-h-screen flex items-center justify-center text-lg text-red-500">Không tìm thấy gói basic này.</div>;
 
-  // Demo amenities nếu backend chưa có
-  const amenities = pkg.amenities || [
-    "High-speed WiFi",
-    "Fully equipped kitchen",
-    "Laundry facilities",
-    "Gym access",
-    "Rooftop terrace",
-    "Co-working space",
-    "24/7 security",
-    "Cleaning service",
-    "Air conditioning",
-    "Parking available",
-  ];
+  // Amenities removed - no mock data needed
+
+  // Function to normalize escaped strings from API
+  const normalizeDescription = (text: string): string => {
+    if (!text) return '';
+    
+    return text
+      // Convert escaped newlines to actual newlines
+      .replace(/\\n/g, '\n')
+      // Convert escaped quotes
+      .replace(/\\"/g, '"')
+      .replace(/\\'/g, "'")
+      // Convert escaped backslashes
+      .replace(/\\\\/g, '\\')
+      // Convert Unicode escape sequences to actual characters
+      .replace(/\\u([0-9a-fA-F]{4})/g, (match, hex) => String.fromCharCode(parseInt(hex, 16)))
+      // Convert other common escape sequences
+      .replace(/\\t/g, '\t')
+      .replace(/\\r/g, '\r');
+  };
 
   return (
     <div className="min-h-screen py-8 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-[#e8f9fc] via-[#f0fbfd] to-[#cce9fa]">
       {message && (
         <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 bg-white border border-blue-200 shadow-lg rounded-xl px-6 py-3 text-blue-800 font-semibold text-center animate-fade-in">
           {message}
+        </div>
+      )}
+      {errorMessage && (
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 bg-white border border-red-200 shadow-lg rounded-xl px-6 py-3 text-red-800 font-semibold text-center animate-fade-in">
+          {errorMessage}
         </div>
       )}
       <div className="max-w-7xl mx-auto">
@@ -483,32 +512,19 @@ export default function BasicRoomPackageDetail({ id, router }: { id: string, rou
       <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Cột trái: Thông tin gói + danh sách phòng */}
         <div className="lg:col-span-2">
-          {/* Header + Info giống trang room */}
+          {/* Header - Outside the box */}
           <div className="mb-6">
             <h1 className="text-3xl font-bold text-slate-800 mb-2">{pkg.name}</h1>
-            <div className="flex flex-col gap-2 text-slate-600">
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-1">
-                  <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                  <span>4.8</span>
-                  <span>(24 reviews)</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <MapPin className="h-4 w-4" />
-                  <span>{pkg.locationName || "City Center"}</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <span className="font-semibold">Type:</span>
-                  <span>{pkg.basicPlanTypeCode}</span>
-                </div>
+            <div className="flex items-center gap-6 text-slate-600">
+              <div className="flex items-center gap-2">
+                <Star className="h-5 w-5 fill-yellow-400 text-yellow-400" />
+                <span className="font-semibold">4.8</span>
+                <span className="text-sm">(24 reviews)</span>
               </div>
-              {/* Show accomodation info if available */}
-              {pkg.acomodations && pkg.acomodations.length > 0 && (
-                <div className="flex flex-col gap-1 mt-2 text-slate-700 text-sm">
-                  <div><span className="font-semibold">Room type:</span> {pkg.acomodations[0].roomType}</div>
-                  <div><span className="font-semibold">Description:</span> {pkg.acomodations[0].accomodationDescription}</div>
-                </div>
-              )}
+              <div className="flex items-center gap-2">
+                <MapPin className="h-5 w-5" />
+                <span className="font-medium">{pkg.propertyName || "City Center"}</span>
+              </div>
             </div>
           </div>
 
@@ -530,24 +546,108 @@ export default function BasicRoomPackageDetail({ id, router }: { id: string, rou
               ))}
             </nav>
           </div>
-          {/* Card: summary, description, amenities */}
-          <div ref={detailsRef} className="bg-white rounded-2xl shadow border border-slate-200 p-8 mb-10">
-            {/* Summary row */}
-            <div className="flex flex-col md:flex-row md:items-center md:gap-8 gap-4 mb-6">
-              <div className="flex items-center gap-2 text-slate-700 text-base"><Bed className="h-5 w-5 mr-1" /> 4 bedrooms</div>
-              <div className="flex items-center gap-2 text-slate-700 text-base"><Bath className="h-5 w-5 mr-1" /> 2 baths</div>
-              <div className="flex items-center gap-2 text-slate-700 text-base"><Users className="h-5 w-5 mr-1" /> 7 residents</div>
-              <div className="flex items-center gap-2 text-slate-700 text-base"><Calendar className="h-5 w-5 mr-1" /> 3 months min.</div>
+          {/* Main Content Box - All sections combined */}
+          <div className="bg-white rounded-2xl shadow border border-slate-200 p-8 mb-10">
+            {/* Package Details Section - Clean design with simple icons */}
+            <div className="mb-8">
+              <h3 className="text-xl font-semibold text-slate-800 mb-6">Package Details</h3>
+              <div className="flex items-stretch">
+                {/* Left Column - 3 fields */}
+                <div className="flex-1 pr-8">
+                  <div className="space-y-4">
+                    {pkg.acomodations && pkg.acomodations.length > 0 && (
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 flex items-center justify-center">
+                          <Building className="w-5 h-5 text-slate-600" />
+                        </div>
+                        <div className="flex-1">
+                          <div className="text-sm text-slate-500 font-medium">Room Type</div>
+                          <div className="text-slate-800 font-semibold">{pkg.acomodations[0].roomType}</div>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {pkg.planDurations && pkg.planDurations.length > 0 && (
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 flex items-center justify-center">
+                          <Calendar className="w-5 h-5 text-slate-600" />
+                        </div>
+                        <div className="flex-1">
+                          <div className="text-sm text-slate-500 font-medium">Duration</div>
+                          <div className="text-slate-800 font-semibold">{pkg.planDurations[0].planDurationDescription}</div>
+                        </div>
+                      </div>
+                    )}
+                    
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 flex items-center justify-center">
+                        <Star className="w-5 h-5 text-slate-600" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="text-sm text-slate-500 font-medium">Service</div>
+                        <div className="text-slate-800 font-semibold">{pkg.nextUServiceName}</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Center Divider */}
+                <div className="w-px bg-slate-200 mx-4"></div>
+                
+                {/* Right Column - 2 fields */}
+                <div className="flex-1 pl-8">
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 flex items-center justify-center">
+                        <span className="text-slate-600 font-bold text-lg">₫</span>
+                      </div>
+                      <div className="flex-1">
+                        <div className="text-sm text-slate-500 font-medium">Base Price</div>
+                        <div className="text-slate-800 font-semibold">₫{pkg.price?.toLocaleString()}</div>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 flex items-center justify-center">
+                        <span className="text-slate-600 font-bold text-lg">#</span>
+                      </div>
+                      <div className="flex-1">
+                        <div className="text-sm text-slate-500 font-medium">Category</div>
+                        <div className="text-slate-800 font-semibold">{pkg.planCategoryName}</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
-            <hr className="my-4" />
-            {/* Description and amenities (reuse DetailsTab) */}
-            <DetailsTab pkg={pkg} amenities={amenities} />
-          </div>
-          {/* Rooms Section */}
-          <div ref={roomsRef} className="max-w-7xl mx-auto mt-10">
-            <div className="bg-white/90 rounded-2xl shadow border border-slate-200 p-6 mb-8">
+            
+            {/* Divider */}
+            <hr className="border-slate-200 mb-8" />
+            
+                         {/* Description Section */}
+             <div ref={detailsRef} className="mb-8">
+               <h3 className="text-xl font-semibold text-slate-800 mb-3">Description</h3>
+               <div className="prose prose-sm max-w-none text-slate-600 leading-relaxed">
+                 {pkg.description ? (
+                   <ReactMarkdown
+                     remarkPlugins={[remarkGfm]}
+                     rehypePlugins={[rehypeSanitize]}
+                   >
+                     {normalizeDescription(pkg.description)}
+                   </ReactMarkdown>
+                 ) : (
+                   <p className="whitespace-pre-line">No description available</p>
+                 )}
+               </div>
+             </div>
+            
+            {/* Divider */}
+            <hr className="border-slate-200 mb-8" />
+            
+            {/* Rooms Section */}
+            <div ref={roomsRef} className="mb-8">
               {/* Header row: title/desc left, button right */}
-              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-4">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-6">
                 <div>
                   <h2 className="text-2xl font-bold mb-1">Room options</h2>
                   <div className="text-slate-600">You'll be sharing this coliving with up to 6 other residents.</div>
@@ -571,80 +671,151 @@ export default function BasicRoomPackageDetail({ id, router }: { id: string, rou
                   )}
                 </div>
               </div>
-              <hr className="my-4" />
-              {/* Private rooms section as a card/box */}
-              <div className="bg-slate-50 rounded-xl border border-slate-100 shadow-sm p-4">
-                {/* <h3 className="text-xl font-semibold mb-4">Private rooms</h3> */}
-                {/* Room list as a grid of cards */}
-                <div className="grid grid-cols-1 gap-6">
-                  {rooms.length === 0 && (
-                    <div className="text-center py-8">
-                      <div className="text-slate-500 mb-2">Không có phòng nào khả dụng cho gói này.</div>
-                      <div className="text-sm text-slate-400">
-                        Có thể do lỗi hệ thống hoặc chưa có phòng được cấu hình.
-                      </div>
+              
+              {/* Room list */}
+              <div className="space-y-4">
+                {rooms.length === 0 && (
+                  <div className="text-center py-8">
+                    <div className="text-slate-500 mb-2">No rooms available for this package.</div>
+                    <div className="text-sm text-slate-400">
+                      This might be due to system error or no rooms configured yet.
                     </div>
-                  )}
-                  {rooms.map((room: any, idx: number) => {
-                    const isSelected = selectedRoom && selectedRoom.id === room.id;
-                    const availability = roomAvailability[room.id] || {};
-                    const status = availability.viewedBookingStatus || '';
-                    const isAvailable = availability.available === true;
-                    return (
-                      <Card key={room.id} className={`border rounded-2xl shadow bg-white/80 ${isSelected ? 'ring-2 ring-blue-500' : ''}`}>
-                        <CardContent className="p-6 flex flex-col md:flex-row gap-6 items-center">
-                          <div className="flex-1 w-full">
-                            <div className="font-bold text-lg text-slate-800 mb-2">{room.roomName || room.roomTypeName}</div>
-                            <div className="text-slate-600 mb-1">{room.descriptionDetails}</div>
-                            <div className="text-slate-500 text-sm mb-1">Tầng: {room.floor} | Mã phòng: {room.roomCode}</div>
-                            <div className="text-slate-500 text-sm mb-1">Loại: {room.roomTypeName}</div>
-                          {/* Trạng thái phòng */}
-                            <div className="mt-2 text-sm">
-                              {isAvailable && <span className="text-green-600 font-semibold">{status}</span>}
-                              {!isAvailable && status && <span className="text-orange-600 font-semibold">{status}</span>}
+                  </div>
+                )}
+                {rooms.map((room: any, idx: number) => {
+                  const isSelected = selectedRoom && selectedRoom.id === room.id;
+                  const availability = roomAvailability[room.id] || {};
+                  const status = availability.viewedBookingStatus || '';
+                  const isAvailable = availability.available === true;
+                  
+                  // Calculate room price: package price + (addOnFee * 30 * duration)
+                  const durationValue = duration ? Number(duration.planDurationValue) : 1;
+                  const roomPrice = pkg.price + (room.addOnFee * 30 * durationValue);
+                  
+                  return (
+                    <div key={room.id} className={`p-6 ${isSelected ? 'bg-blue-50 border-l-4 border-blue-500' : 'bg-slate-50'} rounded-lg transition-all`}>
+                      <div className="flex flex-col md:flex-row gap-6">
+                        {/* Left: Room Image */}
+                        <div className="w-64 h-40 rounded-lg overflow-hidden bg-slate-200 flex-shrink-0">
+                          {room.medias && room.medias.length > 0 ? (
+                            <img 
+                              src={room.medias[0].url} 
+                              alt={room.roomName}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-slate-400">
+                              <Building className="w-16 h-16" />
+                            </div>
+                          )}
+                        </div>
+                        
+                        {/* Right: Room Details */}
+                        <div className="flex-1">
+                          <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+                            {/* Room Info */}
+                            <div className="flex-1">
+                              <div className="font-bold text-lg text-slate-800 mb-2">{room.roomName || room.roomTypeName}</div>
+                              
+                              {/* Room Specifications Grid */}
+                              <div className="grid grid-cols-2 gap-4 text-sm">
+                                <div className="flex items-center gap-2">
+                                  <Maximize className="h-4 w-4 text-slate-400" />
+                                  <span>{room.areaInSquareMeters}m²</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <Bed className="h-4 w-4 text-slate-400" />
+                                  <span>{room.numberOfBeds} beds</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <Eye className="h-4 w-4 text-slate-400" />
+                                  <span>{room.roomViewName}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <Building className="h-4 w-4 text-slate-400" />
+                                  <span>{room.roomFloorName}</span>
+                                </div>
+                              </div>
+                              
+                              {/* Room Status */}
+                              <div className="mt-3 text-sm">
+                                {isAvailable && <span className="text-green-600 font-semibold">{status}</span>}
+                                {!isAvailable && status && <span className="text-orange-600 font-semibold">{status}</span>}
+                              </div>
+                            </div>
+                            
+                            {/* Price and Actions */}
+                            <div className="flex flex-col items-end gap-3">
+                              <div className="text-right">
+                                <div className="text-sm text-slate-500 mb-1">Total Price</div>
+                                <div className="text-2xl font-bold text-blue-700">₫{roomPrice.toLocaleString()}</div>
+                                <div className="text-xs text-slate-500">
+                                  Base: ₫{pkg.price?.toLocaleString()} + Add-on: ₫{(room.addOnFee * 30 * (duration ? Number(duration.planDurationValue) : 1)).toLocaleString()}
+                                </div>
+                              </div>
+                              
+                              <div className="flex gap-2">
+                                <Button
+                                  className="rounded-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow hover:shadow-lg transition"
+                                  onClick={() => handleRoomClick(room)}
+                                  variant="outline"
+                                >
+                                  View Details
+                                </Button>
+                                <Button
+                                  className="rounded-full px-6 py-2 bg-gradient-to-r from-blue-500 to-teal-500 text-white font-semibold shadow hover:shadow-lg transition"
+                                  onClick={() => {
+                                    if (isSelected && hoveredRoomId === room.id) {
+                                      setSelectedRoom(null);
+                                    } else {
+                                      setSelectedRoom(room);
+                                    }
+                                  }}
+                                  variant={isSelected ? 'default' : 'outline'}
+                                  onMouseEnter={() => isSelected && setHoveredRoomId(room.id)}
+                                  onMouseLeave={() => isSelected && setHoveredRoomId(null)}
+                                  disabled={!isAvailable}
+                                >
+                                  {isSelected
+                                    ? (hoveredRoomId === room.id ? 'Deselect' : 'Selected')
+                                    : isAvailable ? 'Select Room' : 'Cannot Select'}
+                                </Button>
+                              </div>
                             </div>
                           </div>
-                          <div className="flex flex-col gap-2 items-center">
-                            <div className="text-xl font-bold text-blue-700 mb-2">₫{pkg.price?.toLocaleString()}</div>
-                            <Button
-                              className="rounded-full px-6 py-2 bg-gradient-to-r from-blue-500 to-teal-500 text-white font-semibold shadow hover:shadow-lg transition"
-                              onClick={() => {
-                                if (isSelected && hoveredRoomId === room.id) {
-                                  setSelectedRoom(null);
-                                } else {
-                                  setSelectedRoom(room);
-                                }
-                              }}
-                              variant={isSelected ? 'default' : 'outline'}
-                              onMouseEnter={() => isSelected && setHoveredRoomId(room.id)}
-                              onMouseLeave={() => isSelected && setHoveredRoomId(null)}
-                              disabled={!isAvailable}
-                            >
-                              {isSelected
-                                ? (hoveredRoomId === room.id ? 'Bỏ chọn' : 'Đã chọn')
-                                : isAvailable ? 'Chọn phòng này' : 'Không thể chọn'}
-                            </Button>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    );
-                  })}
-                </div>
+                        </div>
+                      </div>
+                      
+                      {/* Divider between rooms (except for last room) */}
+                      {idx < rooms.length - 1 && (
+                        <hr className="border-slate-200 mt-4" />
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
-          </div>
-          {/* Location Section */}
-          <div ref={locationRef} className="bg-white rounded-2xl shadow border border-slate-200 p-8 mb-10">
-            <h2 className="text-2xl font-bold mb-4">Location</h2>
-            <hr className="w-12 border-slate-300 mb-6" />
             
-            <div className="rounded-2xl overflow-hidden border border-slate-200">
-              <LocationMap />
+            {/* Divider */}
+            <hr className="border-slate-200 mb-8" />
+            
+            {/* Location Section */}
+            <div ref={locationRef} className="mb-8">
+              <h2 className="text-2xl font-bold mb-4">Location</h2>
+              <hr className="w-12 border-slate-300 mb-6" />
+              
+              <div className="rounded-2xl overflow-hidden border border-slate-200">
+                <LocationMap />
+              </div>
             </div>
-          </div>
-          {/* Reviews Section */}
-          <div ref={reviewsRef} className="bg-white rounded-2xl shadow border border-slate-200 p-8 mb-10">
-            <ReviewsTab />
+            
+            {/* Divider */}
+            <hr className="border-slate-200 mb-8" />
+            
+            {/* Reviews Section */}
+            <div ref={reviewsRef}>
+              <ReviewsTab />
+            </div>
           </div>
         </div> {/* Close left column */}
 
@@ -691,42 +862,85 @@ export default function BasicRoomPackageDetail({ id, router }: { id: string, rou
                       }}
                     />
                   </div>
-                  <Button className="w-full bg-black text-white font-bold py-3 text-lg rounded-full" disabled={!selectedDates.moveIn || !selectedDates.moveOut}>Select Room</Button>
+                  <Button 
+                    className="w-full bg-black text-white font-bold py-3 text-lg rounded-full" 
+                    disabled={!selectedDates.moveIn || !selectedDates.moveOut}
+                    onClick={() => {
+                      if (selectedDates.moveIn && selectedDates.moveOut) {
+                        // Scroll to rooms section
+                        if (roomsRef.current) {
+                          roomsRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        }
+                      }
+                    }}
+                  >
+                    Select Room
+                  </Button>
                 </div>
               ) : (
                 // Đã chọn phòng và lịch, nút là Buy
                 <>
                   <div className="text-center mb-6">
                     <div className="text-2xl font-bold text-slate-800 mb-1">{selectedRoom.roomName || selectedRoom.roomTypeName}</div>
-                    <div className="text-slate-600 text-sm mb-2">{selectedRoom.descriptionDetails}</div>
-                    <div className="text-3xl font-bold text-blue-700">₫{pkg.price?.toLocaleString()}</div>
-                    <div className="text-slate-600">per month</div>
+                    <div className="text-3xl font-bold text-blue-700">₫{(() => {
+                      const durationValue = duration ? Number(duration.planDurationValue) : 1;
+                      const roomPrice = pkg.price + (selectedRoom.addOnFee * 30 * durationValue);
+                      return roomPrice.toLocaleString();
+                    })()}</div>
+                    <div className="text-slate-600">total for {duration?.planDurationDescription || 'duration'}</div>
                   </div>
                   <div className="flex gap-2 mb-4 justify-center">
-                    <button type="button" className={`flex items-center gap-2 px-6 py-2 rounded-full border border-slate-300 bg-white shadow min-w-[140px]`} disabled>
+                    <button 
+                      type="button" 
+                      className="flex items-center gap-2 px-6 py-2 rounded-full border border-slate-300 bg-white shadow min-w-[140px] hover:bg-slate-50 transition-colors cursor-pointer"
+                      onClick={() => { setShowDatePicker(true); setDatePickerSource('right'); }}
+                    >
                       <CalendarIcon className="h-4 w-4 text-blue-600" />
                       {selectedDates.moveIn ? selectedDates.moveIn.toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short' }) : 'Move in'}
                     </button>
-                    <button type="button" className={`flex items-center gap-2 px-6 py-2 rounded-full border border-slate-300 bg-white shadow min-w-[140px]`} disabled>
+                    <button 
+                      type="button" 
+                      className="flex items-center gap-2 px-6 py-2 rounded-full border border-slate-300 bg-white shadow min-w-[140px] hover:bg-slate-50 transition-colors cursor-pointer"
+                      onClick={() => { setShowDatePicker(true); setDatePickerSource('right'); }}
+                    >
                       <CalendarIcon className="h-4 w-4 text-slate-400" />
                       {selectedDates.moveOut ? selectedDates.moveOut.toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' }) : 'Move out'}
                     </button>
                   </div>
                   <div className="mt-6 pt-6 border-t border-slate-200">
                     <div className="flex justify-between items-center text-sm text-slate-600 mb-2">
-                      <span>Monthly rent</span>
+                      <span>Base package price</span>
                       <span>₫{pkg.price?.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-sm text-slate-600 mb-2">
+                      <span>Room add-on fee</span>
+                      <span>₫{(selectedRoom.addOnFee * 30 * (duration ? Number(duration.planDurationValue) : 1)).toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-sm text-slate-600 mb-2">
+                      <span>Duration</span>
+                      <span>{duration?.planDurationDescription || 'N/A'}</span>
                     </div>
                     <div className="flex justify-between items-center font-semibold text-slate-800 pt-2 border-t border-slate-200">
                       <span>Total</span>
-                      <span>₫{pkg.price?.toLocaleString()}</span>
+                      <span>₫{(() => {
+                        const durationValue = duration ? Number(duration.planDurationValue) : 1;
+                        const roomPrice = pkg.price + (selectedRoom.addOnFee * 30 * durationValue);
+                        return roomPrice.toLocaleString();
+                      })()}</span>
                     </div>
                     <button
                       className="mt-6 w-full rounded-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 text-lg transition disabled:opacity-60 disabled:cursor-not-allowed"
-                      onClick={handlePayNow}
-                      disabled={isPaying || !selectedRoom || !selectedDates.moveIn}
+                      onClick={() => {
+                        if (!selectedDates.moveIn || !selectedDates.moveOut) {
+                          setErrorMessage("Please select both move-in and move-out dates before proceeding to payment.");
+                          setTimeout(() => setErrorMessage(null), 5000); // Auto hide after 5 seconds
+                          return;
+                        }
+                        handlePayNow();
+                      }}
+                      disabled={isPaying || !selectedRoom || !selectedDates.moveIn || !selectedDates.moveOut}
                     >
-                      {isPaying ? "Processing..." : "Buy"}
+                      {isPaying ? "Processing..." : "Buy Now"}
                     </button>
                   </div>
                 </>
@@ -741,6 +955,183 @@ export default function BasicRoomPackageDetail({ id, router }: { id: string, rou
               handleDateRangeSelect(dates);
             }}
           />
+
+          {/* Room Detail Modal */}
+          <Dialog open={showRoomDetail} onOpenChange={setShowRoomDetail}>
+            <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
+              <DialogTitle className="text-xl font-semibold flex items-center gap-2">
+                <Building className="h-5 w-5" />
+                Room Information
+              </DialogTitle>
+              
+              {viewingRoom && (
+                <div className="space-y-6">
+                  {/* Room Information */}
+                  <div className="bg-white border rounded-lg p-4">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      {/* Left: Image Gallery */}
+                      <div className="space-y-4">
+                        {/* Main Image */}
+                        <div className="relative aspect-[4/3] rounded-lg overflow-hidden border bg-slate-100">
+                          {selectedRoom.medias && selectedRoom.medias.length > 0 ? (
+                            <>
+                              <img 
+                                src={viewingRoom.medias[currentImageIndex].url} 
+                                alt={viewingRoom.medias[currentImageIndex].description || 'Room image'}
+                                className="w-full h-full object-cover"
+                              />
+                              {/* Image Counter */}
+                              <div className="absolute bottom-3 right-3 bg-black/70 text-white text-xs px-2 py-1 rounded">
+                                {currentImageIndex + 1}/{viewingRoom.medias.length}
+                              </div>
+                              {/* Navigation Arrows */}
+                              {viewingRoom.medias.length > 1 && (
+                                <>
+                                  <button 
+                                    className="absolute left-2 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white text-slate-700 p-2 rounded-full shadow-lg transition-all"
+                                    onClick={() => setCurrentImageIndex((prev) => (prev === 0 ? viewingRoom.medias.length - 1 : prev - 1))}
+                                  >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                                    </svg>
+                                  </button>
+                                  <button 
+                                    className="absolute right-2 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white text-slate-700 p-2 rounded-full shadow-lg transition-all"
+                                    onClick={() => setCurrentImageIndex((prev) => (prev === viewingRoom.medias.length - 1 ? 0 : prev + 1))}
+                                  >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                    </svg>
+                                  </button>
+                                </>
+                              )}
+                            </>
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-slate-400">
+                              <svg className="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                              </svg>
+                            </div>
+                          )}
+                        </div>
+                        
+                        {/* Thumbnail Navigation */}
+                        {viewingRoom.medias && viewingRoom.medias.length > 1 && (
+                          <div className="grid grid-cols-4 gap-2">
+                            {viewingRoom.medias.slice(0, 8).map((media: any, idx: number) => (
+                              <div 
+                                key={idx} 
+                                className={`aspect-square rounded-lg overflow-hidden border-2 cursor-pointer transition-all ${
+                                  currentImageIndex === idx ? 'border-blue-500' : 'border-transparent hover:border-blue-300'
+                                }`}
+                                onClick={() => setCurrentImageIndex(idx)}
+                              >
+                                <img 
+                                  src={media.url} 
+                                  alt={media.description || `Room thumbnail ${idx + 1}`}
+                                  className="w-full h-full object-cover"
+                                />
+                              </div>
+                            ))}
+                            {/* Show "+.." indicator if there are more than 8 images */}
+                            {viewingRoom.medias.length > 8 && (
+                              <div className="aspect-square rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center bg-gray-50">
+                                <span className="text-gray-500 text-sm font-medium">+{viewingRoom.medias.length - 8}</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Right: Room Details */}
+                      <div className="space-y-4">
+                        {/* Combined Description and Room Specifications */}
+                        <div className="bg-white border rounded-lg p-4">
+                          {/* Description Section */}
+                          <div className="mb-4">
+                            <h5 className="font-semibold text-slate-800 mb-3">Description</h5>
+                                                    <div className="bg-slate-50 rounded-lg p-3 text-sm text-slate-700">
+                          {viewingRoom.descriptionDetails || 'No description available'}
+                        </div>
+                          </div>
+
+                          {/* Divider */}
+                          <div className="border-t border-slate-200 mb-4"></div>
+
+                          {/* Room Specifications Section */}
+                          <div>
+                            <h5 className="font-semibold text-slate-800 mb-3">Room Specifications</h5>
+                            
+                            {/* Room Specifications in 4 rows with 2 columns each */}
+                            <div className="space-y-3 text-sm">
+                              {/* Row 1: Room Code | Room Type */}
+                              <div className="grid grid-cols-2 gap-4">
+                                <div className="flex justify-between items-center gap-3">
+                                  <span className="text-slate-500">Room Code:</span>
+                                                                <span className="font-medium">{viewingRoom.roomCode}</span>
+                            </div>
+                            <div className="flex justify-between items-center gap-3">
+                              <span className="text-slate-500">Room Type:</span>
+                              <span 
+                                className="font-medium text-right truncate min-w-0 max-w-[70%] cursor-pointer hover:text-blue-600 transition-colors" 
+                                title={`Click to see full: ${viewingRoom.roomTypeName}`}
+                                onClick={() => {
+                                  if (viewingRoom.roomTypeName.length > 15) {
+                                    alert(`Full Room Type: ${viewingRoom.roomTypeName}`);
+                                  }
+                                }}
+                              >
+                                {viewingRoom.roomTypeName}
+                              </span>
+                                </div>
+                              </div>
+
+                              {/* Row 2: Area | View */}
+                              <div className="grid grid-cols-2 gap-4">
+                                <div className="flex justify-between items-center">
+                                  <span className="text-slate-500">Area:</span>
+                                  <span className="font-medium">{selectedRoom.areaInSquareMeters} m²</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                  <span className="text-slate-500">View:</span>
+                                  <span className="font-medium">{viewingRoom.roomViewName}</span>
+                                </div>
+                              </div>
+
+                              {/* Row 3: Size | Floor */}
+                              <div className="grid grid-cols-2 gap-4">
+                                <div className="flex justify-between items-center">
+                                  <span className="text-slate-500">Size:</span>
+                                  <span className="font-medium">{viewingRoom.roomSizeName}</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                  <span className="text-slate-500">Floor:</span>
+                                  <span className="font-medium">{viewingRoom.roomFloorName}</span>
+                                </div>
+                              </div>
+
+                              {/* Row 4: Bed Type | Number of Beds */}
+                              <div className="grid grid-cols-2 gap-4">
+                                <div className="flex justify-between items-center">
+                                  <span className="text-slate-500">Bed Type:</span>
+                                  <span className="font-medium">{viewingRoom.bedTypeName}</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                  <span className="text-slate-500">Number of Beds:</span>
+                                  <span className="font-medium">{viewingRoom.numberOfBeds}</span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </DialogContent>
+          </Dialog>
+
           {showAuthModal && (
             <Dialog open={showAuthModal} onOpenChange={setShowAuthModal}>
               <DialogContent className="max-w-sm p-8 text-center flex flex-col items-center">

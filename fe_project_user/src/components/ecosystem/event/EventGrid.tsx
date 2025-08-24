@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import EventCard from './EventCard'
 import { TransformedEvent, TransformedEventCategory, TransformedEventLevel } from '@/data/ecosystem/event-api'
-import { eventService } from '@/utils/eventService'
+import { eventService } from '@/api/eventService'
 
 interface EventGridProps {
   events: TransformedEvent[]

@@ -841,7 +841,7 @@ export default function PackageSection({
                   {/* View all button for preview mode */}
                   {isPreview && limitedBasic.length > 0 && (
                     <div className="col-span-full flex justify-center mt-6">
-                      <Link href="/packages/all">
+                      <Link href="/ecosystem/Co-living">
                         <Button className="rounded-lg px-6 py-2 bg-slate-800 hover:bg-slate-700 text-white hover:shadow-md transition-all duration-200 text-sm">
                           View all packages
                         </Button>
@@ -1057,7 +1057,7 @@ export default function PackageSection({
                   {/* View all button for preview mode */}
                   {isPreview && limitedCombos.length > 0 && (
                     <div className="col-span-full flex justify-center mt-6">
-                      <Link href="/packages/all">
+                      <Link href="/ecosystem/Co-living">
                         <Button className="rounded-lg px-6 py-2 bg-[#5661b3] hover:bg-[#4f5aa1] text-white hover:shadow-md transition-all duration-200 text-sm">
                           View all packages
                         </Button>

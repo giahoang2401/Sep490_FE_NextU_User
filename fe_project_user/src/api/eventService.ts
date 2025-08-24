@@ -1,4 +1,4 @@
-import api from './axiosConfig'
+import api from '../utils/axiosConfig'
 import { 
   ApiEvent, 
   ApiEventCategory, 
