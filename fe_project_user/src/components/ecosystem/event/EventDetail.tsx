@@ -43,6 +43,7 @@ import { parseNotes, parseAgenda, parseInstructor } from '@/utils/safeParse'
 import RequirementsChips from './RequirementsChips'
 import AgendaTimeline from './AgendaTimeline'
 import InstructorCard from './InstructorCard'
+import { isLogged } from '@/utils/auth'
 
 interface EventDetailProps {
   event: TransformedEvent
@@ -139,6 +140,7 @@ export default function EventDetail({ event, onBackClick }: EventDetailProps) {
   const [selectedTicket, setSelectedTicket] = useState<SelectedTicket | null>(null)
   const [selectedAddOns, setSelectedAddOns] = useState<SelectedAddOn[]>([])
   const [isBooking, setIsBooking] = useState(false)
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
   
   // States for Buy Full Schedule feature
   const [showRecurringModal, setShowRecurringModal] = useState(false)
@@ -162,6 +164,11 @@ export default function EventDetail({ event, onBackClick }: EventDetailProps) {
   
   // State for early bird countdown
   const [timeUntilEarlyBird, setTimeUntilEarlyBird] = useState<string>('')
+
+  // Detect auth on mount
+  useEffect(() => {
+    setIsAuthenticated(isLogged())
+  }, [])
 
   // Tìm lịch gần nhất sắp tới
   const getUpcomingSchedules = () => {
@@ -263,7 +270,7 @@ export default function EventDetail({ event, onBackClick }: EventDetailProps) {
 
   // Fetch quota for all tickets in the full schedule
   const fetchAllTicketQuotaForFullSchedule = async () => {
-    if (selectedRecurringTickets.length === 0) return
+    if (!isAuthenticated || selectedRecurringTickets.length === 0) return
     
     const promises = selectedRecurringTickets.map(ticket => 
       fetchTicketQuota(ticket.ticketTypeId)
@@ -674,13 +681,13 @@ export default function EventDetail({ event, onBackClick }: EventDetailProps) {
     const availability = ticketAvailability[ticketId]
     
     if (ticket) {
-      // Fetch quota data if not already loaded
-      if (!ticketQuota[ticketId]) {
+      // Fetch quota data if not already loaded and authenticated
+      if (isAuthenticated && !ticketQuota[ticketId]) {
         await fetchTicketQuota(ticketId)
       }
       
-      // Check quota restrictions
-      const quotaCheck = checkQuotaRestrictions(ticketId)
+      // Check quota restrictions (fallback to allow when not authenticated)
+      const quotaCheck = isAuthenticated ? checkQuotaRestrictions(ticketId) : { canSelect: true, canSelectWithWarning: true, message: '' } as any
       
       if (quotaCheck.showPopup) {
         // Show detailed popup for pending requests
@@ -695,7 +702,7 @@ export default function EventDetail({ event, onBackClick }: EventDetailProps) {
       
       // Use API availability data if available, otherwise fall back to event data
       const availableQuantity = availability ? availability.remaining : ticket.totalQuantity
-      const quota = ticketQuota[ticketId]
+      const quota = isAuthenticated ? ticketQuota[ticketId] : undefined
       
       // Determine max quantity considering both availability and quota
       let maxQuantity = availableQuantity
@@ -869,6 +876,7 @@ export default function EventDetail({ event, onBackClick }: EventDetailProps) {
 
   // Function to fetch ticket quota for a specific ticket
   const fetchTicketQuota = async (ticketTypeId: string) => {
+    if (!isAuthenticated) return null
     try {
       setLoadingQuota(prev => ({ ...prev, [ticketTypeId]: true }))
       
@@ -894,7 +902,7 @@ export default function EventDetail({ event, onBackClick }: EventDetailProps) {
 
   // Function to fetch quota for all tickets in current schedule
   const fetchAllTicketQuota = async () => {
-    if (!selectedSchedule) return
+    if (!isAuthenticated || !selectedSchedule) return
     
     const promises = selectedSchedule.ticketTypes.map(ticket => 
       fetchTicketQuota(ticket.id)
@@ -1091,13 +1099,13 @@ export default function EventDetail({ event, onBackClick }: EventDetailProps) {
     const ticket = schedule?.ticketTypes.find(t => t.id === ticketTypeId)
     
     if (schedule && ticket) {
-      // Fetch quota data if not already loaded
-      if (!ticketQuota[ticketTypeId]) {
+      // Fetch quota data if not already loaded and authenticated
+      if (isAuthenticated && !ticketQuota[ticketTypeId]) {
         await fetchTicketQuota(ticketTypeId)
       }
       
-      // Check quota restrictions
-      const quotaCheck = checkQuotaRestrictions(ticketTypeId)
+      // Check quota restrictions (allow when not authenticated)
+      const quotaCheck = isAuthenticated ? checkQuotaRestrictions(ticketTypeId) : { canSelect: true, canSelectWithWarning: true, message: '' } as any
       
       if (quotaCheck.showPopup) {
         // Show detailed popup for pending requests

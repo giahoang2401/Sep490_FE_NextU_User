@@ -973,7 +973,7 @@ export default function BasicRoomPackageDetail({ id, router }: { id: string, rou
                       <div className="space-y-4">
                         {/* Main Image */}
                         <div className="relative aspect-[4/3] rounded-lg overflow-hidden border bg-slate-100">
-                          {selectedRoom.medias && selectedRoom.medias.length > 0 ? (
+                          {viewingRoom.medias && viewingRoom.medias.length > 0 ? (
                             <>
                               <img 
                                 src={viewingRoom.medias[currentImageIndex].url} 
@@ -1090,7 +1090,7 @@ export default function BasicRoomPackageDetail({ id, router }: { id: string, rou
                               <div className="grid grid-cols-2 gap-4">
                                 <div className="flex justify-between items-center">
                                   <span className="text-slate-500">Area:</span>
-                                  <span className="font-medium">{selectedRoom.areaInSquareMeters} m²</span>
+                                  <span className="font-medium">{viewingRoom.areaInSquareMeters} m²</span>
                                 </div>
                                 <div className="flex justify-between items-center">
                                   <span className="text-slate-500">View:</span>
