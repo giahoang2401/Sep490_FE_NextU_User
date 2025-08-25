@@ -139,12 +139,22 @@ export default function PropertyDetail() {
   const getRoomPricingInfo = (room: RoomInstance) => {
     const roomBasicPlans = packageService.getBasicPlansForRoom(basicPlans, room.accommodationOptionId, propertyId)
     
-    if (roomBasicPlans.length === 0) {
+    // Filter basic plans to only show those with planDurationId = 1 or 2
+    const filteredBasicPlans = roomBasicPlans.filter(plan => {
+      if (plan.planDurations && plan.planDurations.length > 0) {
+        const duration = plan.planDurations[0]
+        const planDurationId = duration.planDurationId
+        return planDurationId === 1 || planDurationId === 2
+      }
+      return false
+    })
+    
+    if (filteredBasicPlans.length === 0) {
       return { hasPackage: false, price: null, duration: null }
     }
     
     // Find the plan with lowest price
-    const lowestPricePlan = roomBasicPlans.reduce((lowest, current) => 
+    const lowestPricePlan = filteredBasicPlans.reduce((lowest, current) => 
       current.price < lowest.price ? current : lowest
     )
     
@@ -680,7 +690,17 @@ export default function PropertyDetail() {
                         const roomBasicPlans = packageService.getBasicPlansForRoom(basicPlans, selectedRoom.accommodationOptionId, propertyId)
                         const roomComboPlans = packageService.getComboPlansForRoom(comboPlans, roomBasicPlans, propertyId)
                         
-                        if (roomBasicPlans.length === 0 && roomComboPlans.length === 0) {
+                        // Filter basic plans to only show those with planDurationId = 1 or 2
+                        const filteredBasicPlans = roomBasicPlans.filter(plan => {
+                          if (plan.planDurations && plan.planDurations.length > 0) {
+                            const duration = plan.planDurations[0]
+                            const planDurationId = duration.planDurationId
+                            return planDurationId === 1 || planDurationId === 2
+                          }
+                          return false
+                        })
+                        
+                        if (filteredBasicPlans.length === 0 && roomComboPlans.length === 0) {
                           return (
                             <div className="text-center py-4">
                               <p className="text-xs text-slate-600 mb-2">
@@ -696,13 +716,13 @@ export default function PropertyDetail() {
                         return (
                           <div className="space-y-2">
                             {/* Basic Plans Section */}
-                            {roomBasicPlans.length > 0 && (
+                            {filteredBasicPlans.length > 0 && (
                               <>
                                 <div className="text-xs font-medium text-slate-600 uppercase tracking-wide mb-2">
                                   Basic Plans
                                 </div>
                                 <div className="space-y-2 mb-3">
-                                  {roomBasicPlans.map((plan) => {
+                                  {filteredBasicPlans.map((plan) => {
                                     const duration = plan.planDurations?.[0]
                                     const durationValue = duration?.planDurationValue
                                     const durationUnit = duration?.planDurationUnit
